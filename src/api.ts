@@ -34,6 +34,22 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   return parseResponse<T>(response)
 }
 
+export async function apiBlob(path: string): Promise<Blob> {
+  const headers = new Headers()
+  const token = getToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const response = await fetch(`${API_BASE}/api/admin${path}`, { headers })
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({})) as ApiError
+    if (response.status === 401) {
+      setToken(null)
+      window.dispatchEvent(new Event('admin-session-expired'))
+    }
+    throw new Error(data.message || '文件获取失败，请稍后重试')
+  }
+  return response.blob()
+}
+
 export function json(method: string, body: unknown): RequestInit {
   return { method, body: JSON.stringify(body) }
 }

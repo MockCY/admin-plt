@@ -59,7 +59,7 @@ export type DeviceRow = {
 }
 
 export type DeviceCategoryRow = {
-  id: number; name: string; sortOrder: number; deviceCount: number
+  id: number; name: string; deviceModel: string; snPrefix: string; sortOrder: number; deviceCount: number
   createdAt: string; updatedAt: string
 }
 

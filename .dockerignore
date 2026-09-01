@@ -1,0 +1,9 @@
+.git
+.github
+.idea
+node_modules
+dist
+design-qa
+*.log
+*.tsbuildinfo
+.env*

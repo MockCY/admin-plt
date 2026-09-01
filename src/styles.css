@@ -291,6 +291,17 @@ tbody tr:hover { background: oklch(98% 0.008 105); }
 .dialog h2 { margin: 18px 0 8px; font-size: 1.25rem; }
 .dialog > p { margin: 0 0 20px; color: var(--ink-soft); font-size: 0.875rem; line-height: 1.6; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.qr-dialog { width: min(440px, 100%); }
+.qr-dialog-heading { display: flex; align-items: center; justify-content: space-between; }
+.qr-dialog-heading > span { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 10px; color: var(--green-dark); background: var(--green-soft); }
+.qr-dialog h2 { margin-top: 16px; }
+.qr-preview { width: min(280px, 100%); aspect-ratio: 1; display: grid; place-items: center; margin: 18px auto; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+.qr-preview img { width: 100%; height: 100%; object-fit: contain; }
+.qr-device-meta { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 14px; border-radius: 8px; background: var(--soft); }
+.qr-device-meta span { color: var(--ink-muted); font-size: 0.75rem; }
+.generated-device-fields { min-height: 72px; display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 10px 12px; border: 1px dashed var(--line-strong); border-radius: 8px; background: var(--soft); }
+.generated-device-fields small { color: var(--ink-muted); font-size: 0.6875rem; }
+.generated-device-fields strong { font-size: 0.8125rem; }
 
 .login-page { min-height: 100vh; display: grid; grid-template-columns: minmax(380px, 1.05fr) minmax(420px, .95fr); background: var(--paper); }
 .login-brand { position: relative; display: flex; align-items: center; overflow: hidden; padding: clamp(36px, 7vw, 100px); color: oklch(93% 0.015 140); background: var(--sidebar); }

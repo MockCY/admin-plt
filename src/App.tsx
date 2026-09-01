@@ -2,10 +2,10 @@ import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'reac
 import {
   Activity, BarChart3, BookOpen, CalendarDays, Check, ChevronLeft, ChevronRight,
   ClipboardList, Dumbbell, FileClock, Flag, Image as ImageIcon, LayoutDashboard, LoaderCircle,
-  LogOut, Menu, MessageSquareText, MoreHorizontal, Pencil, Plus, RefreshCw, Search,
+  Download, LogOut, Menu, MessageSquareText, MoreHorizontal, Pencil, Plus, QrCode, RefreshCw, Search,
   ShieldCheck, Tags, Trash2, Upload, UserRound, UsersRound, Video, X,
 } from 'lucide-react'
-import { api, getToken, json, mediaUrl, setToken, uploadMedia } from './api'
+import { api, apiBlob, getToken, json, mediaUrl, setToken, uploadMedia } from './api'
 import type {
   AuditRow, CampaignRow, CourseRow, Dashboard, DeviceCategoryRow, DeviceRow, ExerciseRow, FeedbackRow, PageResult,
   PlanItem, PlanRow, Status, UserRow, WorkoutRow,
@@ -336,6 +336,7 @@ function DevicesPage() {
   const [page, setPage] = useState(1)
   const [editing, setEditing] = useState<DeviceRow | 'new' | null>(null)
   const [deleting, setDeleting] = useState<DeviceRow | null>(null)
+  const [qrDevice, setQrDevice] = useState<DeviceRow | null>(null)
   const path = `/devices?query=${encodeURIComponent(search)}&category=${encodeURIComponent(category)}&page=${page}&pageSize=20`
   const { data, loading, error, reload } = useResource<PageResult<DeviceRow>>(path)
   const categories = useResource<DeviceCategoryRow[]>('/device-categories')
@@ -345,20 +346,21 @@ function DevicesPage() {
     await api(`/devices/${deleting.id}`, { method: 'DELETE' })
     setDeleting(null); reload()
   }
-  return <Page title="设备管理" description="维护设备编号、分类和连接状态，用户通过设备编号绑定。"
+  return <Page title="设备管理" description="维护设备档案和连接状态，用户可扫描设备二维码完成绑定。"
     action={<button className="button primary" onClick={() => setEditing('new')}><Plus size={17} />新增设备</button>}>
     <Toolbar onSubmit={() => { setSearch(query); setPage(1) }} query={query} setQuery={setQuery} placeholder="搜索名称、编号或序列号" onRefresh={reloadAll} loading={loading || categories.loading}>
       <label className="select-field"><span className="sr-only">设备分类</span><select value={category} onChange={(event) => { setCategory(event.target.value); setPage(1) }}><option value="ALL">全部分类</option>{categories.data?.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select></label>
     </Toolbar>
     {error && <ErrorBanner message={error} onRetry={reload} />}
     {categories.error && <ErrorBanner message={categories.error} onRetry={categories.reload} />}
-    <TableSurface loading={loading} empty={!data?.items.length} emptyText="还没有设备" emptyHint="新建设备时需要选择分类，并填写用户绑定用的序列号。">
-      <Table><thead><tr><th>设备</th><th>分类</th><th>序列号</th><th>型号</th><th>连接</th><th>绑定用户</th><th>状态</th><th>更新时间</th><th><span className="sr-only">操作</span></th></tr></thead>
-        <tbody>{data?.items.map((item) => <tr key={item.id}><td className="cell-title"><span>{item.name}</span><small><code>{item.code}</code></small></td><td>{item.category}</td><td><code>{item.serialNumber}</code></td><td>{item.deviceModel}</td><td><Badge status={item.connected ? 'ACTIVE' : 'INACTIVE'} /></td><td>{item.boundUserCount}</td><td><Badge status={item.active ? 'ACTIVE' : 'ARCHIVED'} /></td><td>{formatDate(item.updatedAt)}</td><td><RowActions onEdit={() => setEditing(item)} onDelete={() => setDeleting(item)} /></td></tr>)}</tbody>
+    <TableSurface loading={loading} empty={!data?.items.length} emptyText="还没有设备" emptyHint="选择分类并填写设备档案，SN 和二维码将由系统自动生成。">
+      <Table><thead><tr><th>设备</th><th>分类</th><th>序列号</th><th>型号</th><th>连接</th><th>绑定用户</th><th>状态</th><th>创建时间</th><th><span className="sr-only">操作</span></th></tr></thead>
+        <tbody>{data?.items.map((item) => <tr key={item.id}><td className="cell-title"><span>{item.name}</span><small><code>{item.code}</code></small></td><td>{item.category}</td><td><code>{item.serialNumber}</code></td><td>{item.deviceModel}</td><td><Badge status={item.connected ? 'ACTIVE' : 'INACTIVE'} /></td><td>{item.boundUserCount}</td><td><Badge status={item.active ? 'ACTIVE' : 'ARCHIVED'} /></td><td>{formatDate(item.createdAt)}</td><td><div className="row-actions"><button className="icon-button" onClick={() => setQrDevice(item)} aria-label="查看二维码" title="查看二维码"><QrCode size={17} /></button><button className="icon-button" onClick={() => setEditing(item)} aria-label="编辑" title="编辑"><Pencil size={17} /></button><button className="icon-button danger" onClick={() => setDeleting(item)} aria-label="删除" title="删除"><Trash2 size={17} /></button></div></td></tr>)}</tbody>
       </Table>
     </TableSurface>
     {data && <Pagination data={data} onPage={setPage} />}
     {editing && <DeviceEditor categories={categories.data || []} value={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload() }} />}
+    {qrDevice && <DeviceQrDialog device={qrDevice} onClose={() => setQrDevice(null)} />}
     <ConfirmDialog open={!!deleting} title="删除设备？" message={deleting ? `“${deleting.name}”删除后无法恢复。已被用户绑定的设备不会被删除。` : ''} confirmLabel="删除设备" onCancel={() => setDeleting(null)} onConfirm={remove} />
   </Page>
 }
@@ -376,8 +378,8 @@ function DeviceCategoriesPage() {
     action={<button className="button primary" onClick={() => setEditing('new')}><Plus size={17} />新增分类</button>}>
     {error && <ErrorBanner message={error} onRetry={reload} />}
     <TableSurface loading={loading} empty={!data?.length} emptyText="还没有设备分类" emptyHint="先创建分类，再新增设备。">
-      <Table><thead><tr><th>分类名称</th><th>设备数量</th><th>排序</th><th>更新时间</th><th><span className="sr-only">操作</span></th></tr></thead>
-        <tbody>{data?.map((item) => <tr key={item.id}><td className="cell-title">{item.name}</td><td>{item.deviceCount}</td><td>{item.sortOrder}</td><td>{formatDate(item.updatedAt)}</td><td><RowActions onEdit={() => setEditing(item)} onDelete={() => setDeleting(item)} /></td></tr>)}</tbody>
+      <Table><thead><tr><th>分类名称</th><th>对应型号</th><th>SN 前缀</th><th>设备数量</th><th>排序</th><th>更新时间</th><th><span className="sr-only">操作</span></th></tr></thead>
+        <tbody>{data?.map((item) => <tr key={item.id}><td className="cell-title">{item.name}</td><td>{item.deviceModel}</td><td><code>{item.snPrefix}</code></td><td>{item.deviceCount}</td><td>{item.sortOrder}</td><td>{formatDate(item.updatedAt)}</td><td><RowActions onEdit={() => setEditing(item)} onDelete={() => setDeleting(item)} /></td></tr>)}</tbody>
       </Table>
     </TableSurface>
     {editing && <DeviceCategoryEditor value={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload() }} />}
@@ -520,7 +522,10 @@ function CampaignEditor({ value, onClose, onSaved }: { value: CampaignRow | null
 }
 
 function DeviceCategoryEditor({ value, onClose, onSaved }: { value: DeviceCategoryRow | null; onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState({ name: value?.name || '', sortOrder: value?.sortOrder || 0 })
+  const [form, setForm] = useState({
+    name: value?.name || '', deviceModel: value?.deviceModel || '', snPrefix: value?.snPrefix || '',
+    sortOrder: value?.sortOrder || 0,
+  })
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setBusy(true); setError('')
@@ -531,7 +536,7 @@ function DeviceCategoryEditor({ value, onClose, onSaved }: { value: DeviceCatego
   }
   return <SidePanel title={value ? '编辑设备分类' : '新增设备分类'} subtitle="分类将用于设备筛选和新建设备" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" form="device-category-form" disabled={busy}>{busy ? '正在保存' : '保存分类'}</button></div>}>
     <form id="device-category-form" className="editor-form" onSubmit={submit}>{error && <div className="form-error" role="alert">{error}</div>}
-      <FormSection title="分类信息"><Field label="分类名称" required hint="最多 30 个字符"><input value={form.name} maxLength={30} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="例如 康复器械" required /></Field><Field label="排序" hint="数字越小越靠前"><input type="number" value={form.sortOrder} onChange={(event) => setForm((current) => ({ ...current, sortOrder: Number(event.target.value) }))} /></Field></FormSection>
+      <FormSection title="分类信息"><Field label="分类名称" required hint="最多 30 个字符"><input value={form.name} maxLength={30} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="例如 康复器械" required /></Field><Field label="对应型号" required hint="新建设备将自动采用此型号"><input value={form.deviceModel} maxLength={100} onChange={(event) => setForm((current) => ({ ...current, deviceModel: event.target.value }))} placeholder="例如 Arvello Rehab Pro" required /></Field><Field label="SN 前缀" required hint="2 至 12 位字母或数字，同分类保持一致"><input value={form.snPrefix} minLength={2} maxLength={12} pattern="[A-Za-z0-9]+" onChange={(event) => setForm((current) => ({ ...current, snPrefix: event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }))} placeholder="例如 REHAB" required /></Field><Field label="排序" hint="数字越小越靠前"><input type="number" value={form.sortOrder} onChange={(event) => setForm((current) => ({ ...current, sortOrder: Number(event.target.value) }))} /></Field></FormSection>
     </form>
   </SidePanel>
 }
@@ -539,24 +544,27 @@ function DeviceCategoryEditor({ value, onClose, onSaved }: { value: DeviceCatego
 function DeviceEditor({ value, categories, onClose, onSaved }: { value: DeviceRow | null; categories: DeviceCategoryRow[]; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState({
     code: value?.code || '', name: value?.name || '', category: value?.category || '',
-    serialNumber: value?.serialNumber || '', deviceModel: value?.deviceModel || '',
     bedType: value?.bedType || '', springConfig: value?.springConfig || '',
     purchasedOn: value?.purchasedOn || '', connected: value?.connected ?? false,
     active: value?.active ?? true, sortOrder: value?.sortOrder || 0,
   })
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
   const update = (key: string, next: unknown) => setForm((current) => ({ ...current, [key]: next }))
+  const selectedCategory = categories.find((item) => item.name === form.category)
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setBusy(true); setError('')
     try {
-      await api(value ? `/devices/${value.id}` : '/devices', json(value ? 'PUT' : 'POST', { ...form, purchasedOn: form.purchasedOn || null }))
+      const payload = value
+        ? { code: form.code, name: form.name, bedType: form.bedType, springConfig: form.springConfig, purchasedOn: form.purchasedOn || null, connected: form.connected, active: form.active, sortOrder: form.sortOrder }
+        : { ...form, purchasedOn: form.purchasedOn || null }
+      await api(value ? `/devices/${value.id}` : '/devices', json(value ? 'PUT' : 'POST', payload))
       onSaved()
     } catch (reason) { setError(reason instanceof Error ? reason.message : '设备保存失败') } finally { setBusy(false) }
   }
-  return <SidePanel title={value ? '编辑设备' : '新增设备'} subtitle="序列号用于用户绑定，分类为必选项" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>继续编辑后再说</button><button className="button primary" form="device-form" disabled={busy || categories.length === 0}>{busy ? '正在保存' : '保存设备'}</button></div>}>
+  return <SidePanel title={value ? '编辑设备' : '新增设备'} subtitle={value ? '分类、型号和 SN 创建后保持不变' : '型号、SN、二维码和创建时间由后端自动生成'} onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>继续编辑后再说</button><button className="button primary" form="device-form" disabled={busy || categories.length === 0}>{busy ? '正在保存' : '保存设备'}</button></div>}>
     <form id="device-form" className="editor-form" onSubmit={submit}>{error && <div className="form-error">{error}</div>}{categories.length === 0 && <div className="form-error" role="alert">请先在“设备分类”中创建至少一个分类。</div>}
-      <FormSection title="设备信息"><div className="form-grid"><Field label="设备名称" required><input value={form.name} maxLength={80} onChange={(event) => update('name', event.target.value)} required /></Field><Field label="设备分类" required><select value={form.category} onChange={(event) => update('category', event.target.value)} required disabled={categories.length === 0}><option value="" disabled>请选择分类</option>{categories.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select></Field><Field label="设备代码" required hint="保存后建议不要修改"><input value={form.code} maxLength={40} onChange={(event) => update('code', event.target.value.toUpperCase().replace(/\s/g, '_'))} placeholder="例如 FLEX_AIR_HOME" required /></Field><Field label="设备序列号" required><input value={form.serialNumber} maxLength={64} onChange={(event) => update('serialNumber', event.target.value.toUpperCase().replace(/\s/g, ''))} placeholder="用户绑定时输入" required /></Field></div></FormSection>
-      <FormSection title="硬件档案"><div className="form-grid"><Field label="设备型号" required><input value={form.deviceModel} maxLength={100} onChange={(event) => update('deviceModel', event.target.value)} required /></Field><Field label="床体类型" required><input value={form.bedType} maxLength={80} onChange={(event) => update('bedType', event.target.value)} required /></Field><Field label="弹簧配置" required><input value={form.springConfig} maxLength={200} onChange={(event) => update('springConfig', event.target.value)} required /></Field><Field label="采购日期"><input type="date" value={form.purchasedOn} onChange={(event) => update('purchasedOn', event.target.value)} /></Field></div></FormSection>
+      <FormSection title="设备信息"><div className="form-grid"><Field label="设备名称" required><input value={form.name} maxLength={80} onChange={(event) => update('name', event.target.value)} required /></Field><Field label="设备分类" required hint={value ? '创建后不可更改' : undefined}><select value={form.category} onChange={(event) => update('category', event.target.value)} required disabled={categories.length === 0 || !!value}><option value="" disabled>请选择分类</option>{categories.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select></Field><Field label="设备代码" required hint="保存后建议不要修改"><input value={form.code} maxLength={40} onChange={(event) => update('code', event.target.value.toUpperCase().replace(/\s/g, '_'))} placeholder="例如 FLEX_AIR_HOME" required /></Field>{!value && <div className="generated-device-fields"><small>自动生成</small><strong>{selectedCategory?.deviceModel || '选择分类后确定型号'}</strong><code>{selectedCategory ? `${selectedCategory.snPrefix}-YYYYMMDD-XXXXXXXX` : 'SN 待生成'}</code></div>}</div></FormSection>
+      <FormSection title="硬件档案"><div className="form-grid"><Field label="床体类型" required><input value={form.bedType} maxLength={80} onChange={(event) => update('bedType', event.target.value)} required /></Field><Field label="弹簧配置" required><input value={form.springConfig} maxLength={200} onChange={(event) => update('springConfig', event.target.value)} required /></Field><Field label="采购日期"><input type="date" value={form.purchasedOn} onChange={(event) => update('purchasedOn', event.target.value)} /></Field></div></FormSection>
       <FormSection title="启用设置"><div className="form-grid"><Field label="排序"><input type="number" value={form.sortOrder} onChange={(event) => update('sortOrder', Number(event.target.value))} /></Field></div><label className="switch-row"><input type="checkbox" checked={form.connected} onChange={(event) => update('connected', event.target.checked)} /><span><strong>设备当前在线</strong><small>用于前端展示连接状态</small></span></label><label className="switch-row"><input type="checkbox" checked={form.active} onChange={(event) => update('active', event.target.checked)} /><span><strong>允许用户绑定</strong><small>关闭后不再出现在可用设备中</small></span></label></FormSection>
     </form>
   </SidePanel>
@@ -624,6 +632,33 @@ function SidePanel({ title, subtitle, onClose, children, footer, wide }: { title
     return () => { document.body.classList.remove('panel-open'); window.removeEventListener('keydown', onKey) }
   }, [onClose])
   return <div className="panel-layer" role="presentation"><button className="panel-scrim" onClick={onClose} aria-label="关闭编辑面板" /><aside className={`side-panel ${wide ? 'wide' : ''}`} aria-modal="true" role="dialog" aria-labelledby="panel-title"><header><div><h2 id="panel-title">{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button className="icon-button" onClick={onClose} aria-label="关闭"><X size={20} /></button></header><div className="panel-body">{children}</div>{footer && <footer>{footer}</footer>}</aside></div>
+}
+
+function DeviceQrDialog({ device, onClose }: { device: DeviceRow; onClose: () => void }) {
+  const [url, setUrl] = useState('')
+  const [error, setError] = useState('')
+  useEffect(() => {
+    let objectUrl = ''
+    let active = true
+    apiBlob(`/devices/${device.id}/qr-code`).then((blob) => {
+      objectUrl = URL.createObjectURL(blob)
+      if (active) setUrl(objectUrl)
+      else URL.revokeObjectURL(objectUrl)
+    }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : '二维码加载失败') })
+    return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl) }
+  }, [device.id])
+  const download = () => {
+    if (!url) return
+    const link = document.createElement('a')
+    link.href = url; link.download = `${device.serialNumber}-qr.png`; link.click()
+  }
+  return <div className="dialog-layer" role="presentation"><div className="dialog qr-dialog" role="dialog" aria-modal="true" aria-labelledby="qr-title">
+    <div className="qr-dialog-heading"><span><QrCode size={22} /></span><button className="icon-button" onClick={onClose} aria-label="关闭"><X size={20} /></button></div>
+    <h2 id="qr-title">{device.name}</h2><p>打印或贴附此二维码。用户登录小程序后扫码，即可将设备绑定到当前账号。</p>
+    <div className="qr-preview">{error ? <div className="form-error" role="alert">{error}</div> : url ? <img src={url} alt={`${device.name}绑定二维码`} /> : <LoaderCircle className="spin" size={28} />}</div>
+    <div className="qr-device-meta"><span>序列号</span><code>{device.serialNumber}</code></div>
+    <div className="dialog-actions"><button className="button secondary" onClick={onClose}>关闭</button><button className="button primary" onClick={download} disabled={!url}><Download size={17} />下载二维码</button></div>
+  </div></div>
 }
 
 function ConfirmDialog({ open, title, message, confirmLabel, onCancel, onConfirm }: { open: boolean; title: string; message: string; confirmLabel: string; onCancel: () => void; onConfirm: () => Promise<void> }) {
