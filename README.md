@@ -30,6 +30,8 @@ pnpm build
 `Dockerfile` 使用 Nginx 托管静态文件，并把 `/api` 与 `/media` 转发到名为
 `arvello-backend` 的后端容器。`server/deploy/docker-compose.yml` 已同时包含后端和管理端，
 启动后管理端监听 `http://127.0.0.1:8081`。生产环境应只通过 HTTPS 暴露后台。
+生产构建的静态资源前缀为 `/admin/`，可通过现有站点的
+`https://manhart.top/admin/` 路径反向代理访问。
 
 ## GitHub Actions 自动部署
 
