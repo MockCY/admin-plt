@@ -5,13 +5,13 @@ import {
   Download, LogOut, Menu, MessageSquareText, MoreHorizontal, Pencil, Plus, QrCode, RefreshCw, Search,
   ShieldCheck, Tags, Trash2, Upload, UserRound, UsersRound, Video, X,
 } from 'lucide-react'
-import { api, apiBlob, getToken, json, mediaUrl, setToken, uploadMedia } from './api'
+import { api, apiBlob, downloadMedia, getToken, json, mediaUrl, setToken, uploadMedia } from './api'
 import type {
-  AuditRow, CampaignRow, CourseRow, Dashboard, DeviceCategoryRow, DeviceRow, ExerciseRow, FeedbackRow, PageResult,
+  AuditRow, CampaignRow, CourseRow, Dashboard, DeviceModelRow, DeviceRow, ExerciseRow, FeedbackRow, PageResult,
   PlanItem, PlanRow, Status, UserRow, WorkoutRow,
 } from './types'
 
-type RouteKey = 'dashboard' | 'users' | 'courses' | 'exercises' | 'plans' | 'campaigns' | 'devices' | 'device-categories' | 'workouts' | 'feedback' | 'audits'
+type RouteKey = 'dashboard' | 'users' | 'courses' | 'exercises' | 'plans' | 'campaigns' | 'devices' | 'device-models' | 'workouts' | 'feedback' | 'audits'
 
 const ROUTES: { key: RouteKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: 'dashboard', label: '数据概览', icon: LayoutDashboard },
@@ -21,7 +21,7 @@ const ROUTES: { key: RouteKey; label: string; icon: typeof LayoutDashboard }[] =
   { key: 'plans', label: '训练计划', icon: CalendarDays },
   { key: 'campaigns', label: '训练营', icon: Flag },
   { key: 'devices', label: '设备管理', icon: Activity },
-  { key: 'device-categories', label: '设备分类', icon: Tags },
+  { key: 'device-models', label: '设备型号', icon: Tags },
   { key: 'workouts', label: '训练记录', icon: ClipboardList },
   { key: 'feedback', label: '问题反馈', icon: MessageSquareText },
   { key: 'audits', label: '操作日志', icon: FileClock },
@@ -30,6 +30,7 @@ const ROUTES: { key: RouteKey; label: string; icon: typeof LayoutDashboard }[] =
 const STATUS_LABEL: Record<string, string> = {
   DRAFT: '草稿', PUBLISHED: '已发布', ARCHIVED: '已下架',
   ACTIVE: '正常', INACTIVE: '停用', SUBMITTED: '待处理', PROCESSING: '处理中', RESOLVED: '已解决',
+  BOUND: '已绑定', UNBOUND: '未绑定',
 }
 
 const formatter = new Intl.DateTimeFormat('zh-CN', {
@@ -114,7 +115,7 @@ export default function App() {
           {route === 'plans' && <PlansPage />}
           {route === 'campaigns' && <CampaignsPage />}
           {route === 'devices' && <DevicesPage />}
-          {route === 'device-categories' && <DeviceCategoriesPage />}
+          {route === 'device-models' && <DeviceModelsPage />}
           {route === 'workouts' && <WorkoutsPage />}
           {route === 'feedback' && <FeedbackPage />}
           {route === 'audits' && <AuditsPage />}
@@ -332,58 +333,58 @@ function CampaignsPage() {
 function DevicesPage() {
   const [query, setQuery] = useState('')
   const [search, setSearch] = useState('')
-  const [category, setCategory] = useState('ALL')
+  const [deviceModel, setDeviceModel] = useState('ALL')
   const [page, setPage] = useState(1)
   const [creating, setCreating] = useState(false)
   const [deleting, setDeleting] = useState<DeviceRow | null>(null)
   const [qrDevice, setQrDevice] = useState<DeviceRow | null>(null)
-  const path = `/devices?query=${encodeURIComponent(search)}&category=${encodeURIComponent(category)}&page=${page}&pageSize=20`
+  const path = `/devices?query=${encodeURIComponent(search)}&deviceModel=${encodeURIComponent(deviceModel)}&page=${page}&pageSize=20`
   const { data, loading, error, reload } = useResource<PageResult<DeviceRow>>(path)
-  const categories = useResource<DeviceCategoryRow[]>('/device-categories')
-  const reloadAll = () => { reload(); categories.reload() }
+  const models = useResource<DeviceModelRow[]>('/device-models')
+  const reloadAll = () => { reload(); models.reload() }
   const remove = async () => {
     if (!deleting) return
     await api(`/devices/${deleting.id}`, { method: 'DELETE' })
     setDeleting(null); reload()
   }
-  return <Page title="设备管理" description="维护设备档案和连接状态，用户可扫描设备二维码完成绑定。"
+  return <Page title="设备管理" description="按型号创建设备，用户扫描二维码后完成账号绑定。"
     action={<button className="button primary" onClick={() => setCreating(true)}><Plus size={17} />新增设备</button>}>
-    <Toolbar onSubmit={() => { setSearch(query); setPage(1) }} query={query} setQuery={setQuery} placeholder="搜索名称、编号或序列号" onRefresh={reloadAll} loading={loading || categories.loading}>
-      <label className="select-field"><span className="sr-only">设备分类</span><select value={category} onChange={(event) => { setCategory(event.target.value); setPage(1) }}><option value="ALL">全部分类</option>{categories.data?.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select></label>
+    <Toolbar onSubmit={() => { setSearch(query); setPage(1) }} query={query} setQuery={setQuery} placeholder="搜索型号或序列号" onRefresh={reloadAll} loading={loading || models.loading}>
+      <label className="select-field"><span className="sr-only">设备型号</span><select value={deviceModel} onChange={(event) => { setDeviceModel(event.target.value); setPage(1) }}><option value="ALL">全部型号</option>{models.data?.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select></label>
     </Toolbar>
     {error && <ErrorBanner message={error} onRetry={reload} />}
-    {categories.error && <ErrorBanner message={categories.error} onRetry={categories.reload} />}
+    {models.error && <ErrorBanner message={models.error} onRetry={models.reload} />}
     <TableSurface loading={loading} empty={!data?.items.length} emptyText="还没有设备" emptyHint="选择设备类型后，系统会生成 SN 和绑定二维码。">
-      <Table><thead><tr><th>设备</th><th>分类</th><th>序列号</th><th>型号</th><th>连接</th><th>绑定用户</th><th>状态</th><th>创建时间</th><th><span className="sr-only">操作</span></th></tr></thead>
-        <tbody>{data?.items.map((item) => <tr key={item.id}><td className="cell-title"><span>{item.name}</span><small><code>{item.code}</code></small></td><td>{item.category}</td><td><code>{item.serialNumber}</code></td><td>{item.deviceModel}</td><td><Badge status={item.connected ? 'ACTIVE' : 'INACTIVE'} /></td><td>{item.boundUserCount}</td><td><Badge status={item.active ? 'ACTIVE' : 'ARCHIVED'} /></td><td>{formatDate(item.createdAt)}</td><td><div className="row-actions"><button className="icon-button" onClick={() => setQrDevice(item)} aria-label="查看二维码" title="查看二维码"><QrCode size={17} /></button><button className="icon-button danger" onClick={() => setDeleting(item)} aria-label="删除" title="删除"><Trash2 size={17} /></button></div></td></tr>)}</tbody>
+      <Table><thead><tr><th>序列号</th><th>型号</th><th>状态</th><th>创建时间</th><th><span className="sr-only">操作</span></th></tr></thead>
+        <tbody>{data?.items.map((item) => <tr key={item.id}><td><code>{item.serialNumber}</code></td><td>{item.deviceModel}</td><td><Badge status={item.bound ? 'BOUND' : 'UNBOUND'} /></td><td>{formatDate(item.createdAt)}</td><td><div className="row-actions"><button className="icon-button" onClick={() => setQrDevice(item)} aria-label="查看二维码" title="查看二维码"><QrCode size={17} /></button><button className="icon-button danger" onClick={() => setDeleting(item)} aria-label="删除" title="删除"><Trash2 size={17} /></button></div></td></tr>)}</tbody>
       </Table>
     </TableSurface>
     {data && <Pagination data={data} onPage={setPage} />}
-    {creating && <DeviceCreator categories={categories.data || []} onClose={() => setCreating(false)} onCreated={(created) => { setCreating(false); reload(); setQrDevice(created) }} />}
+    {creating && <DeviceCreator models={models.data || []} onClose={() => setCreating(false)} onCreated={(created) => { setCreating(false); reload(); setQrDevice(created) }} />}
     {qrDevice && <DeviceQrDialog device={qrDevice} onClose={() => setQrDevice(null)} />}
-    <ConfirmDialog open={!!deleting} title="删除设备？" message={deleting ? `“${deleting.name}”删除后无法恢复。已被用户绑定的设备不会被删除。` : ''} confirmLabel="删除设备" onCancel={() => setDeleting(null)} onConfirm={remove} />
+    <ConfirmDialog open={!!deleting} title="删除设备？" message={deleting ? `序列号“${deleting.serialNumber}”删除后无法恢复。已绑定设备不能删除。` : ''} confirmLabel="删除设备" onCancel={() => setDeleting(null)} onConfirm={remove} />
   </Page>
 }
 
-function DeviceCategoriesPage() {
-  const { data, loading, error, reload } = useResource<DeviceCategoryRow[]>('/device-categories')
-  const [editing, setEditing] = useState<DeviceCategoryRow | 'new' | null>(null)
-  const [deleting, setDeleting] = useState<DeviceCategoryRow | null>(null)
+function DeviceModelsPage() {
+  const { data, loading, error, reload } = useResource<DeviceModelRow[]>('/device-models')
+  const [editing, setEditing] = useState<DeviceModelRow | 'new' | null>(null)
+  const [deleting, setDeleting] = useState<DeviceModelRow | null>(null)
   const remove = async () => {
     if (!deleting) return
-    await api(`/device-categories/${deleting.id}`, { method: 'DELETE' })
+    await api(`/device-models/${deleting.id}`, { method: 'DELETE' })
     setDeleting(null); reload()
   }
-  return <Page title="设备分类" description="维护新建设备时可选择的分类。分类改名会同步到已有设备。"
-    action={<button className="button primary" onClick={() => setEditing('new')}><Plus size={17} />新增分类</button>}>
+  return <Page title="设备型号" description="维护新建设备时可选择的型号及其 SN 生成前缀。"
+    action={<button className="button primary" onClick={() => setEditing('new')}><Plus size={17} />新增型号</button>}>
     {error && <ErrorBanner message={error} onRetry={reload} />}
-    <TableSurface loading={loading} empty={!data?.length} emptyText="还没有设备分类" emptyHint="先创建分类，再新增设备。">
-      <Table><thead><tr><th>分类名称</th><th>对应型号</th><th>SN 前缀</th><th>设备数量</th><th>排序</th><th>更新时间</th><th><span className="sr-only">操作</span></th></tr></thead>
-        <tbody>{data?.map((item) => <tr key={item.id}><td className="cell-title">{item.name}</td><td>{item.deviceModel}</td><td><code>{item.snPrefix}</code></td><td>{item.deviceCount}</td><td>{item.sortOrder}</td><td>{formatDate(item.updatedAt)}</td><td><RowActions onEdit={() => setEditing(item)} onDelete={() => setDeleting(item)} /></td></tr>)}</tbody>
+    <TableSurface loading={loading} empty={!data?.length} emptyText="还没有设备型号" emptyHint="先创建型号，再新增设备。">
+      <Table><thead><tr><th>型号名称</th><th>SN 前缀</th><th>设备数量</th><th>更新时间</th><th><span className="sr-only">操作</span></th></tr></thead>
+        <tbody>{data?.map((item) => <tr key={item.id}><td className="cell-title">{item.name}</td><td><code>{item.snPrefix}</code></td><td>{item.deviceCount}</td><td>{formatDate(item.updatedAt)}</td><td><RowActions onEdit={() => setEditing(item)} onDelete={() => setDeleting(item)} /></td></tr>)}</tbody>
       </Table>
     </TableSurface>
-    {editing && <DeviceCategoryEditor value={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload() }} />}
-    <ConfirmDialog open={!!deleting} title="删除设备分类？" message={deleting ? `“${deleting.name}”下有 ${deleting.deviceCount} 台设备时无法删除。` : ''} confirmLabel="删除分类" onCancel={() => setDeleting(null)} onConfirm={remove} />
+    {editing && <DeviceModelEditor value={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload() }} />}
+    <ConfirmDialog open={!!deleting} title="删除设备型号？" message={deleting ? `“${deleting.name}”下有 ${deleting.deviceCount} 台设备时无法删除。` : ''} confirmLabel="删除型号" onCancel={() => setDeleting(null)} onConfirm={remove} />
   </Page>
 }
 
@@ -521,39 +522,36 @@ function CampaignEditor({ value, onClose, onSaved }: { value: CampaignRow | null
   </SidePanel>
 }
 
-function DeviceCategoryEditor({ value, onClose, onSaved }: { value: DeviceCategoryRow | null; onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState({
-    name: value?.name || '', deviceModel: value?.deviceModel || '', snPrefix: value?.snPrefix || '',
-    sortOrder: value?.sortOrder || 0,
-  })
+function DeviceModelEditor({ value, onClose, onSaved }: { value: DeviceModelRow | null; onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState({ name: value?.name || '', snPrefix: value?.snPrefix || '' })
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setBusy(true); setError('')
     try {
-      await api(value ? `/device-categories/${value.id}` : '/device-categories', json(value ? 'PUT' : 'POST', form))
+      await api(value ? `/device-models/${value.id}` : '/device-models', json(value ? 'PUT' : 'POST', form))
       onSaved()
-    } catch (reason) { setError(reason instanceof Error ? reason.message : '分类保存失败') } finally { setBusy(false) }
+    } catch (reason) { setError(reason instanceof Error ? reason.message : '型号保存失败') } finally { setBusy(false) }
   }
-  return <SidePanel title={value ? '编辑设备分类' : '新增设备分类'} subtitle="分类将用于设备筛选和新建设备" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" form="device-category-form" disabled={busy}>{busy ? '正在保存' : '保存分类'}</button></div>}>
-    <form id="device-category-form" className="editor-form" onSubmit={submit}>{error && <div className="form-error" role="alert">{error}</div>}
-      <FormSection title="分类信息"><Field label="分类名称" required hint="最多 30 个字符"><input value={form.name} maxLength={30} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="例如 康复器械" required /></Field><Field label="对应型号" required hint="新建设备将自动采用此型号"><input value={form.deviceModel} maxLength={100} onChange={(event) => setForm((current) => ({ ...current, deviceModel: event.target.value }))} placeholder="例如 Arvello Rehab Pro" required /></Field><Field label="SN 前缀" required hint="2 至 12 位字母或数字，同分类保持一致"><input value={form.snPrefix} minLength={2} maxLength={12} pattern="[A-Za-z0-9]+" onChange={(event) => setForm((current) => ({ ...current, snPrefix: event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }))} placeholder="例如 REHAB" required /></Field><Field label="排序" hint="数字越小越靠前"><input type="number" value={form.sortOrder} onChange={(event) => setForm((current) => ({ ...current, sortOrder: Number(event.target.value) }))} /></Field></FormSection>
+  return <SidePanel title={value ? '编辑设备型号' : '新增设备型号'} subtitle="型号用于新建设备和生成序列号" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" form="device-model-form" disabled={busy}>{busy ? '正在保存' : '保存型号'}</button></div>}>
+    <form id="device-model-form" className="editor-form" onSubmit={submit}>{error && <div className="form-error" role="alert">{error}</div>}
+      <FormSection title="型号信息"><Field label="型号名称" required hint="最多 100 个字符"><input value={form.name} maxLength={100} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="例如 Arvello Rehab Pro" required /></Field><Field label="SN 前缀" required hint="2 至 12 位字母或数字，同型号保持一致"><input value={form.snPrefix} minLength={2} maxLength={12} pattern="[A-Za-z0-9]+" onChange={(event) => setForm((current) => ({ ...current, snPrefix: event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }))} placeholder="例如 REHAB" required /></Field></FormSection>
     </form>
   </SidePanel>
 }
 
-function DeviceCreator({ categories, onClose, onCreated }: { categories: DeviceCategoryRow[]; onClose: () => void; onCreated: (created: DeviceRow) => void }) {
-  const [category, setCategory] = useState(categories[0]?.name || '')
+function DeviceCreator({ models, onClose, onCreated }: { models: DeviceModelRow[]; onClose: () => void; onCreated: (created: DeviceRow) => void }) {
+  const [deviceModel, setDeviceModel] = useState(models[0]?.name || '')
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setBusy(true); setError('')
     try {
-      const created = await api<DeviceRow>('/devices', json('POST', { category }))
+      const created = await api<DeviceRow>('/devices', json('POST', { deviceModel }))
       onCreated(created)
     } catch (reason) { setError(reason instanceof Error ? reason.message : '设备保存失败') } finally { setBusy(false) }
   }
-  return <SidePanel title="新增设备" subtitle="选择设备类型后生成绑定二维码" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" form="device-form" disabled={busy || categories.length === 0}>{busy ? '正在生成' : <><QrCode size={17} />生成二维码</>}</button></div>}>
-    <form id="device-form" className="editor-form" onSubmit={submit}>{error && <div className="form-error">{error}</div>}{categories.length === 0 && <div className="form-error" role="alert">请先在“设备分类”中创建至少一个分类。</div>}
-      <FormSection title="设备类型"><Field label="设备类型" required><select value={category} onChange={(event) => setCategory(event.target.value)} required disabled={categories.length === 0}>{categories.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select></Field></FormSection>
+  return <SidePanel title="新增设备" subtitle="选择型号后生成绑定二维码" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" form="device-form" disabled={busy || models.length === 0}>{busy ? '正在生成' : <><QrCode size={17} />生成二维码</>}</button></div>}>
+    <form id="device-form" className="editor-form" onSubmit={submit}>{error && <div className="form-error">{error}</div>}{models.length === 0 && <div className="form-error" role="alert">请先在“设备型号”中创建至少一个型号。</div>}
+      <FormSection title="设备型号"><Field label="设备型号" required><select value={deviceModel} onChange={(event) => setDeviceModel(event.target.value)} required disabled={models.length === 0}>{models.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select></Field></FormSection>
     </form>
   </SidePanel>
 }
@@ -561,6 +559,7 @@ function DeviceCreator({ categories, onClose, onCreated }: { categories: DeviceC
 function MediaUploader({ label, kind, value, onChange }: { label: string; kind: 'image' | 'video'; value: string; onChange: (value: string) => void }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
+  const [downloading, setDownloading] = useState(false)
   const [error, setError] = useState('')
   const [previewFailed, setPreviewFailed] = useState(false)
   useEffect(() => setPreviewFailed(false), [value])
@@ -571,8 +570,15 @@ function MediaUploader({ label, kind, value, onChange }: { label: string; kind: 
     catch (reason) { setError(reason instanceof Error ? reason.message : '上传失败，请重新选择文件') }
     finally { setBusy(false) }
   }
+  const download = async () => {
+    if (!value || downloading) return
+    setDownloading(true); setError('')
+    try { await downloadMedia(value, label) }
+    catch (reason) { setError(reason instanceof Error ? reason.message : '下载失败，请稍后重试') }
+    finally { setDownloading(false) }
+  }
   return <div className="uploader"><div className="uploader-label"><strong>{label}</strong><small>{kind === 'image' ? 'JPG、PNG 或 WebP' : 'MP4、WebM 或 MOV'}</small></div>
-    {value ? <div className="media-preview">{kind === 'image' ? previewFailed ? <div className="media-preview-fallback"><ImageIcon size={25} /><span>图片暂不可预览</span></div> : <img src={mediaUrl(value)} alt={`${label}预览`} onError={() => setPreviewFailed(true)} /> : <div className="video-preview"><Video size={28} /><span>{value.split('/').pop()}</span></div>}<div className="media-preview-actions"><button type="button" className="button secondary small" onClick={() => inputRef.current?.click()}>更换{kind === 'image' ? '图片' : '视频'}</button><button type="button" className="button ghost small danger-text" onClick={() => onChange('')}>移除</button></div></div> : <button type="button" className="upload-drop" onClick={() => inputRef.current?.click()} disabled={busy}>{busy ? <LoaderCircle className="spin" size={24} /> : <Upload size={24} />}<strong>{busy ? '正在上传' : `选择${kind === 'image' ? '图片' : '视频'}`}</strong><span>{kind === 'image' ? '建议使用 16:9 横图' : '文件大小由服务器配置限制'}</span></button>}
+    {value ? <div className="media-preview">{kind === 'image' ? previewFailed ? <div className="media-preview-fallback"><ImageIcon size={25} /><span>图片暂不可预览</span></div> : <img src={mediaUrl(value)} alt={`${label}预览`} onError={() => setPreviewFailed(true)} /> : <div className="video-preview"><Video size={28} /><span>{value.split('/').pop()}</span></div>}<div className="media-preview-actions"><button type="button" className="icon-button" onClick={download} disabled={downloading} aria-label={`下载${label}`} title={`下载${label}`}>{downloading ? <LoaderCircle className="spin" size={17} /> : <Download size={17} />}</button><div className="media-preview-edit-actions"><button type="button" className="button secondary small" onClick={() => inputRef.current?.click()}>更换{kind === 'image' ? '图片' : '视频'}</button><button type="button" className="button ghost small danger-text" onClick={() => onChange('')}>移除</button></div></div></div> : <button type="button" className="upload-drop" onClick={() => inputRef.current?.click()} disabled={busy}>{busy ? <LoaderCircle className="spin" size={24} /> : <Upload size={24} />}<strong>{busy ? '正在上传' : `选择${kind === 'image' ? '图片' : '视频'}`}</strong><span>{kind === 'image' ? '建议使用 16:9 横图' : '文件大小由服务器配置限制'}</span></button>}
     <input ref={inputRef} className="sr-only" type="file" accept={kind === 'image' ? 'image/jpeg,image/png,image/webp' : 'video/mp4,video/webm,video/quicktime'} onChange={(event) => upload(event.target.files?.[0])} />{error && <p className="field-error">{error}</p>}</div>
 }
 
@@ -642,8 +648,8 @@ function DeviceQrDialog({ device, onClose }: { device: DeviceRow; onClose: () =>
   }
   return <div className="dialog-layer" role="presentation"><div className="dialog qr-dialog" role="dialog" aria-modal="true" aria-labelledby="qr-title">
     <div className="qr-dialog-heading"><span><QrCode size={22} /></span><button className="icon-button" onClick={onClose} aria-label="关闭"><X size={20} /></button></div>
-    <h2 id="qr-title">{device.name}</h2><p>打印或贴附此二维码。用户登录小程序后扫码，即可将设备绑定到当前账号。</p>
-    <div className="qr-preview">{error ? <div className="form-error" role="alert">{error}</div> : url ? <img src={url} alt={`${device.name}绑定二维码`} /> : <LoaderCircle className="spin" size={28} />}</div>
+    <h2 id="qr-title">{device.deviceModel}</h2><p>打印或贴附此二维码。用户登录小程序后扫码，即可将设备绑定到当前账号。</p>
+    <div className="qr-preview">{error ? <div className="form-error" role="alert">{error}</div> : url ? <img src={url} alt={`${device.deviceModel}绑定二维码`} /> : <LoaderCircle className="spin" size={28} />}</div>
     <div className="qr-device-meta"><span>序列号</span><code>{device.serialNumber}</code></div>
     <div className="dialog-actions"><button className="button secondary" onClick={onClose}>关闭</button><button className="button primary" onClick={download} disabled={!url}><Download size={17} />下载二维码</button></div>
   </div></div>

@@ -61,6 +61,36 @@ export async function uploadMedia(file: File, kind: 'image' | 'video') {
   return api<{ url: string; size: number; originalName: string }>('/media/upload', { method: 'POST', body: form })
 }
 
+const MEDIA_EXTENSIONS: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'video/mp4': '.mp4',
+  'video/webm': '.webm',
+  'video/quicktime': '.mov',
+}
+
+export async function downloadMedia(path: string, preferredName?: string) {
+  const response = await fetch(mediaUrl(path))
+  if (!response.ok) throw new Error('媒体文件下载失败，请稍后重试')
+
+  const blob = await response.blob()
+  const sourceName = path.split(/[?#]/)[0].split('/').pop() || 'media'
+  const sourceExtension = sourceName.match(/\.[a-z0-9]+$/i)?.[0] || MEDIA_EXTENSIONS[blob.type] || ''
+  const baseName = (preferredName || sourceName.replace(/\.[a-z0-9]+$/i, '') || 'media')
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-')
+    .trim() || 'media'
+  const filename = /\.[a-z0-9]+$/i.test(baseName) ? baseName : `${baseName}${sourceExtension}`
+  const objectUrl = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = objectUrl
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 0)
+}
+
 export function mediaUrl(path?: string | null) {
   if (!path) return ''
   if (/^https?:\/\//.test(path)) return path

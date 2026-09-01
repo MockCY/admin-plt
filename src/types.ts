@@ -52,15 +52,11 @@ export type FeedbackRow = {
 }
 
 export type DeviceRow = {
-  id: number; code: string; name: string; category: string; serialNumber: string
-  deviceModel: string; bedType: string; springConfig: string; purchasedOn?: string
-  connected: boolean; active: boolean; sortOrder: number; boundUserCount: number
-  createdAt: string; updatedAt: string
+  id: number; serialNumber: string; deviceModel: string; bound: boolean; createdAt: string; updatedAt: string
 }
 
-export type DeviceCategoryRow = {
-  id: number; name: string; deviceModel: string; snPrefix: string; sortOrder: number; deviceCount: number
-  createdAt: string; updatedAt: string
+export type DeviceModelRow = {
+  id: number; name: string; snPrefix: string; deviceCount: number; createdAt: string; updatedAt: string
 }
 
 export type AuditRow = {

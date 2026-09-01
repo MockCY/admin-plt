@@ -143,8 +143,8 @@ tbody tr:hover { background: oklch(98% 0.008 105); }
 .row-actions .icon-button { width: 34px; height: 34px; }
 .badge { width: fit-content; min-height: 26px; display: inline-flex; align-items: center; gap: 7px; padding: 0 9px; border-radius: 999px; color: var(--ink-soft); background: var(--soft); font-size: 0.75rem; font-weight: 610; white-space: nowrap; }
 .badge > span { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-muted); }
-.status-published, .status-active, .status-resolved { color: oklch(36% 0.07 139); background: var(--green-soft); }
-.status-published > span, .status-active > span, .status-resolved > span { background: var(--green); }
+.status-published, .status-active, .status-resolved, .status-bound { color: oklch(36% 0.07 139); background: var(--green-soft); }
+.status-published > span, .status-active > span, .status-resolved > span, .status-bound > span { background: var(--green); }
 .status-draft, .status-processing { color: oklch(42% 0.07 58); background: var(--warning-soft); }
 .status-draft > span, .status-processing > span { background: var(--warning); }
 .status-archived { color: var(--ink-muted); background: oklch(94% 0.008 145); }
@@ -260,6 +260,7 @@ tbody tr:hover { background: oklch(98% 0.008 105); }
 .video-preview { min-height: 104px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; padding: 12px; color: var(--green-dark); }
 .video-preview span { max-width: 100%; overflow: hidden; color: var(--ink-soft); font-size: 0.75rem; text-overflow: ellipsis; white-space: nowrap; }
 .media-preview-actions { display: flex; align-items: center; justify-content: space-between; padding: 8px; border-top: 1px solid var(--line); }
+.media-preview-edit-actions { display: flex; align-items: center; gap: 6px; }
 .check-list { max-height: 310px; overflow-y: auto; border: 1px solid var(--line); border-radius: 9px; }
 .check-row { min-height: 56px; display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-top: 1px solid var(--line); cursor: pointer; }
 .check-row:first-child { border-top: 0; }
