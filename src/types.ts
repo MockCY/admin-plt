@@ -7,7 +7,10 @@ export type Dashboard = {
   weeklyWorkoutCount: number
   courseCount: number
   pendingFeedbackCount: number
+  todayOnlineCount: number
+  currentOnlineCount: number
   workoutTrend: { date: string; count: number }[]
+  onlineTrend: { date: string; count: number }[]
   recentContent: { id: number; title: string; kind: string; status: string; updatedAt: string }[]
 }
 
@@ -33,6 +36,8 @@ export type ExerciseRow = {
 export type PlanItem = { id?: number; courseId: number; courseTitle?: string; dayOffset: number; sortOrder: number }
 export type PlanRow = {
   id: number; title: string; weekNumber: number; sessionsPerWeek: number; description?: string
+  subtitle?: string; coverImage?: string; level?: string; trainingScene?: string; sessionMinutes?: number
+  benefitOne?: string; benefitTwo?: string; benefitThree?: string
   active: boolean; sortOrder: number; items: PlanItem[]; createdAt: string; updatedAt: string
 }
 

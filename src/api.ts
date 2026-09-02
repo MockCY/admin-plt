@@ -94,5 +94,6 @@ export async function downloadMedia(path: string, preferredName?: string) {
 export function mediaUrl(path?: string | null) {
   if (!path) return ''
   if (/^https?:\/\//.test(path)) return path
-  return `${API_BASE}${path}`
+  const apiPath = path.replace(/^\/media\//, '/api/media/files/')
+  return `${API_BASE}${apiPath}`
 }

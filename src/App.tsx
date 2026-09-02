@@ -1,4 +1,4 @@
-import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity, BarChart3, BookOpen, CalendarDays, Check, ChevronLeft, ChevronRight,
   ClipboardList, Dumbbell, FileClock, Flag, Image as ImageIcon, LayoutDashboard, LoaderCircle,
@@ -168,28 +168,43 @@ function LoginPage({ onLogin }: { onLogin: (token: string) => void }) {
 
 function DashboardPage() {
   const { data, loading, error, reload } = useResource<Dashboard>('/dashboard')
-  const max = Math.max(...(data?.workoutTrend.map((item) => item.count) || [1]), 1)
+  const [trendMode, setTrendMode] = useState<'online' | 'workouts'>('online')
+  const trend = trendMode === 'online' ? data?.onlineTrend : data?.workoutTrend
+  const max = Math.max(...(trend?.map((item) => item.count) || [1]), 1)
   const metrics = [
-    ['用户总数', data?.userCount ?? 0, `本周新增 ${data?.weeklyNewUsers ?? 0}`],
-    ['本周训练次数', data?.weeklyWorkoutCount ?? 0, '过去 7 天'],
-    ['课程总数', data?.courseCount ?? 0, '包含草稿和下架'],
-    ['待处理反馈', data?.pendingFeedbackCount ?? 0, '需要管理员关注'],
+    { label: '当前在线', value: data?.currentOnlineCount ?? 0, note: '15 秒内更新', live: true },
+    { label: '今日在线用户', value: data?.todayOnlineCount ?? 0, note: '按登录用户去重' },
+    { label: '用户总数', value: data?.userCount ?? 0, note: `本周新增 ${data?.weeklyNewUsers ?? 0}` },
+    { label: '本周训练次数', value: data?.weeklyWorkoutCount ?? 0, note: '过去 7 天' },
+    { label: '课程总数', value: data?.courseCount ?? 0, note: '包含草稿和下架' },
+    { label: '待处理反馈', value: data?.pendingFeedbackCount ?? 0, note: '需要管理员关注' },
   ]
+
+  useEffect(() => {
+    const timer = window.setInterval(reload, 15000)
+    return () => window.clearInterval(timer)
+  }, [reload])
 
   return <Page title="数据概览" description="查看内容与用户的最新运行状态。" action={<RefreshButton onClick={reload} loading={loading} />}>
     {error && <ErrorBanner message={error} onRetry={reload} />}
     {loading && !data ? <DashboardSkeleton /> : data && <>
       <section className="status-strip" aria-label="核心数据">
-        <div className="health-cell"><span className="health-icon"><Check size={18} /></span><span><strong>系统运行正常</strong><small>数据刚刚更新</small></span></div>
-        {metrics.map(([label, value, note]) => <div className="metric-cell" key={String(label)}>
-          <small>{label}</small><strong>{Number(value).toLocaleString('zh-CN')}</strong><span>{note}</span>
+        <div className="health-cell"><span className="health-icon"><Check size={18} /></span><span><strong>系统运行正常</strong><small>每 15 秒自动更新</small></span></div>
+        {metrics.map((metric) => <div className={`metric-cell ${metric.live ? 'live' : ''}`} key={metric.label}>
+          <small className="metric-label">{metric.label}{metric.live && <span className="live-badge"><i />实时</span>}</small>
+          <strong>{Number(metric.value).toLocaleString('zh-CN')}</strong><span>{metric.note}</span>
         </div>)}
       </section>
       <div className="dashboard-grid">
         <section className="surface trend-panel">
-          <div className="section-heading"><div><p className="eyebrow">过去 7 天</p><h2>训练趋势</h2></div><BarChart3 size={20} /></div>
-          <div className="bar-chart" role="img" aria-label="最近七天训练次数柱状图">
-            {data.workoutTrend.map((item) => <div className="bar-column" key={item.date}>
+          <div className="section-heading"><div><p className="eyebrow">过去 7 天</p><h2>{trendMode === 'online' ? '每日在线用户' : '训练趋势'}</h2></div>
+            <div className="trend-switch" role="group" aria-label="趋势类型">
+              <button className={trendMode === 'online' ? 'active' : ''} onClick={() => setTrendMode('online')} aria-pressed={trendMode === 'online'}><UsersRound size={15} />在线用户</button>
+              <button className={trendMode === 'workouts' ? 'active' : ''} onClick={() => setTrendMode('workouts')} aria-pressed={trendMode === 'workouts'}><BarChart3 size={15} />训练次数</button>
+            </div>
+          </div>
+          <div className="bar-chart" role="img" aria-label={trendMode === 'online' ? '最近七天每日在线用户柱状图' : '最近七天训练次数柱状图'}>
+            {(trend || []).map((item) => <div className="bar-column" key={item.date}>
               <span className="bar-value">{item.count}</span>
               <span className="bar-track"><span className="bar-fill" style={{ height: `${Math.max(6, item.count / max * 100)}%` }} /></span>
               <small>{new Date(`${item.date}T00:00:00`).toLocaleDateString('zh-CN', { weekday: 'short' })}</small>
@@ -302,7 +317,7 @@ function PlansPage() {
     {error && <ErrorBanner message={error} onRetry={reload} />}
     <TableSurface loading={loading} empty={!data?.items.length} emptyText="还没有训练计划" emptyHint="创建计划并安排每周课程。">
       <Table><thead><tr><th>计划</th><th>周期</th><th>每周训练</th><th>课程安排</th><th>状态</th><th>更新时间</th><th><span className="sr-only">操作</span></th></tr></thead>
-        <tbody>{data?.items.map((item) => <tr key={item.id}><td className="cell-title">{item.title}</td><td>第 {item.weekNumber} 周</td><td>{item.sessionsPerWeek} 次</td><td>{item.items.length} 节</td><td><Badge status={item.active ? 'PUBLISHED' : 'ARCHIVED'} /></td><td>{formatDate(item.updatedAt)}</td><td><RowActions onEdit={() => setEditing(item)} onDelete={() => setDeleting(item)} /></td></tr>)}</tbody>
+        <tbody>{data?.items.map((item) => <tr key={item.id}><td><div className="content-cell"><MediaThumbnail src={item.coverImage} label={item.title} icon="image" /><span><strong>{item.title}</strong><small>{item.subtitle || item.description || '尚未填写计划副标题'}</small></span></div></td><td>第 {item.weekNumber} 周</td><td>{item.sessionsPerWeek} 次</td><td>{item.items.length} 节</td><td><Badge status={item.active ? 'PUBLISHED' : 'ARCHIVED'} /></td><td>{formatDate(item.updatedAt)}</td><td><RowActions onEdit={() => setEditing(item)} onDelete={() => setDeleting(item)} /></td></tr>)}</tbody>
       </Table>
     </TableSurface>
     {editing && <PlanEditor value={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload() }} />}
@@ -337,7 +352,7 @@ function DevicesPage() {
   const [page, setPage] = useState(1)
   const [creating, setCreating] = useState(false)
   const [deleting, setDeleting] = useState<DeviceRow | null>(null)
-  const [qrDevice, setQrDevice] = useState<DeviceRow | null>(null)
+  const [labelDevice, setLabelDevice] = useState<DeviceRow | null>(null)
   const path = `/devices?query=${encodeURIComponent(search)}&deviceModel=${encodeURIComponent(deviceModel)}&page=${page}&pageSize=20`
   const { data, loading, error, reload } = useResource<PageResult<DeviceRow>>(path)
   const models = useResource<DeviceModelRow[]>('/device-models')
@@ -347,21 +362,21 @@ function DevicesPage() {
     await api(`/devices/${deleting.id}`, { method: 'DELETE' })
     setDeleting(null); reload()
   }
-  return <Page title="设备管理" description="按型号创建设备，用户扫描二维码后完成账号绑定。"
+  return <Page title="设备管理" description="按型号生成递增 SN；设备标签使用统一的小程序入口二维码。"
     action={<button className="button primary" onClick={() => setCreating(true)}><Plus size={17} />新增设备</button>}>
     <Toolbar onSubmit={() => { setSearch(query); setPage(1) }} query={query} setQuery={setQuery} placeholder="搜索型号或序列号" onRefresh={reloadAll} loading={loading || models.loading}>
       <label className="select-field"><span className="sr-only">设备型号</span><select value={deviceModel} onChange={(event) => { setDeviceModel(event.target.value); setPage(1) }}><option value="ALL">全部型号</option>{models.data?.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select></label>
     </Toolbar>
     {error && <ErrorBanner message={error} onRetry={reload} />}
     {models.error && <ErrorBanner message={models.error} onRetry={models.reload} />}
-    <TableSurface loading={loading} empty={!data?.items.length} emptyText="还没有设备" emptyHint="选择设备类型后，系统会生成 SN 和绑定二维码。">
+    <TableSurface loading={loading} empty={!data?.items.length} emptyText="还没有设备" emptyHint="选择设备型号后，系统会生成唯一 SN 和可下载的设备标签。">
       <Table><thead><tr><th>序列号</th><th>型号</th><th>状态</th><th>创建时间</th><th><span className="sr-only">操作</span></th></tr></thead>
-        <tbody>{data?.items.map((item) => <tr key={item.id}><td><code>{item.serialNumber}</code></td><td>{item.deviceModel}</td><td><Badge status={item.bound ? 'BOUND' : 'UNBOUND'} /></td><td>{formatDate(item.createdAt)}</td><td><div className="row-actions"><button className="icon-button" onClick={() => setQrDevice(item)} aria-label="查看二维码" title="查看二维码"><QrCode size={17} /></button><button className="icon-button danger" onClick={() => setDeleting(item)} aria-label="删除" title="删除"><Trash2 size={17} /></button></div></td></tr>)}</tbody>
+        <tbody>{data?.items.map((item) => <tr key={item.id}><td><code>{item.serialNumber}</code></td><td>{item.deviceModel}</td><td><Badge status={item.bound ? 'BOUND' : 'UNBOUND'} /></td><td>{formatDate(item.createdAt)}</td><td><div className="row-actions"><button className="icon-button" onClick={() => setLabelDevice(item)} aria-label="查看设备标签" title="查看设备标签"><QrCode size={17} /></button><button className="icon-button danger" onClick={() => setDeleting(item)} aria-label="删除" title="删除"><Trash2 size={17} /></button></div></td></tr>)}</tbody>
       </Table>
     </TableSurface>
     {data && <Pagination data={data} onPage={setPage} />}
-    {creating && <DeviceCreator models={models.data || []} onClose={() => setCreating(false)} onCreated={(created) => { setCreating(false); reload(); setQrDevice(created) }} />}
-    {qrDevice && <DeviceQrDialog device={qrDevice} onClose={() => setQrDevice(null)} />}
+    {creating && <DeviceCreator models={models.data || []} onClose={() => setCreating(false)} onCreated={(created) => { setCreating(false); reload(); setLabelDevice(created) }} />}
+    {labelDevice && <DeviceLabelDialog device={labelDevice} onClose={() => setLabelDevice(null)} />}
     <ConfirmDialog open={!!deleting} title="删除设备？" message={deleting ? `序列号“${deleting.serialNumber}”删除后无法恢复。已绑定设备不能删除。` : ''} confirmLabel="删除设备" onCancel={() => setDeleting(null)} onConfirm={remove} />
   </Page>
 }
@@ -497,7 +512,13 @@ function ExerciseEditor({ value, onClose, onSaved }: { value: ExerciseRow | null
 }
 
 function PlanEditor({ value, onClose, onSaved }: { value: PlanRow | null; onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState({ title: value?.title || '', weekNumber: value?.weekNumber || 1, sessionsPerWeek: value?.sessionsPerWeek || 3, description: value?.description || '', active: value?.active ?? true, sortOrder: value?.sortOrder || 0, items: value?.items || [] as PlanItem[] })
+  const [form, setForm] = useState({
+    title: value?.title || '', weekNumber: value?.weekNumber || 1, sessionsPerWeek: value?.sessionsPerWeek || 3,
+    description: value?.description || '', subtitle: value?.subtitle || '', coverImage: value?.coverImage || '',
+    level: value?.level || '基础', trainingScene: value?.trainingScene || '居家', sessionMinutes: value?.sessionMinutes || 15,
+    benefitOne: value?.benefitOne || '核心激活', benefitTwo: value?.benefitTwo || '身体唤醒', benefitThree: value?.benefitThree || '训练习惯',
+    active: value?.active ?? true, sortOrder: value?.sortOrder || 0, items: value?.items || [] as PlanItem[],
+  })
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
   const courses = useResource<PageResult<CourseRow>>('/courses?status=PUBLISHED&page=1&pageSize=100').data?.items || []
   const update = (key: string, next: unknown) => setForm((current) => ({ ...current, [key]: next }))
@@ -505,7 +526,9 @@ function PlanEditor({ value, onClose, onSaved }: { value: PlanRow | null; onClos
   const setItem = (index: number, patch: Partial<PlanItem>) => update('items', form.items.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item))
   const submit = async (event: FormEvent) => { event.preventDefault(); setBusy(true); setError(''); try { await api(value ? `/plans/${value.id}` : '/plans', json(value ? 'PUT' : 'POST', form)); onSaved() } catch (reason) { setError(reason instanceof Error ? reason.message : '计划保存失败') } finally { setBusy(false) } }
   return <SidePanel title={value ? '编辑训练计划' : '新增训练计划'} subtitle="课程按训练日顺序展示给用户" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>继续编辑后再说</button><button className="button primary" form="plan-form" disabled={busy}>{busy ? '正在保存' : '保存计划'}</button></div>}>
-    <form id="plan-form" className="editor-form" onSubmit={submit}>{error && <div className="form-error">{error}</div>}<FormSection title="计划信息"><Field label="计划名称" required><input value={form.title} onChange={(event) => update('title', event.target.value)} required /></Field><div className="form-grid"><Field label="当前周数"><input type="number" min="1" max="52" value={form.weekNumber} onChange={(event) => update('weekNumber', Number(event.target.value))} /></Field><Field label="每周训练次数"><input type="number" min="1" max="14" value={form.sessionsPerWeek} onChange={(event) => update('sessionsPerWeek', Number(event.target.value))} /></Field></div><Field label="计划说明"><textarea rows={3} value={form.description} onChange={(event) => update('description', event.target.value)} /></Field></FormSection>
+    <form id="plan-form" className="editor-form" onSubmit={submit}>{error && <div className="form-error">{error}</div>}<FormSection title="计划信息"><Field label="计划名称" required><input value={form.title} onChange={(event) => update('title', event.target.value)} required /></Field><Field label="一句话目标"><input value={form.subtitle} maxLength={160} onChange={(event) => update('subtitle', event.target.value)} placeholder="例如 建立动作基础，养成运动习惯" /></Field><div className="form-grid"><Field label="当前周数"><input type="number" min="1" max="52" value={form.weekNumber} onChange={(event) => update('weekNumber', Number(event.target.value))} /></Field><Field label="每周训练次数"><input type="number" min="1" max="14" value={form.sessionsPerWeek} onChange={(event) => update('sessionsPerWeek', Number(event.target.value))} /></Field><Field label="难度"><input value={form.level} maxLength={30} onChange={(event) => update('level', event.target.value)} /></Field><Field label="训练场景"><input value={form.trainingScene} maxLength={30} onChange={(event) => update('trainingScene', event.target.value)} /></Field><Field label="单次时长（分钟）"><input type="number" min="1" max="600" value={form.sessionMinutes} onChange={(event) => update('sessionMinutes', Number(event.target.value))} /></Field></div><Field label="计划介绍"><textarea rows={4} value={form.description} maxLength={300} onChange={(event) => update('description', event.target.value)} /></Field></FormSection>
+      <FormSection title="展示素材"><MediaUploader label="计划封面" kind="image" value={form.coverImage} onChange={(next) => update('coverImage', next)} /></FormSection>
+      <FormSection title="完成收益" description="会展示在小程序计划详情底部。"><div className="form-grid"><Field label="收益一"><input value={form.benefitOne} maxLength={80} onChange={(event) => update('benefitOne', event.target.value)} /></Field><Field label="收益二"><input value={form.benefitTwo} maxLength={80} onChange={(event) => update('benefitTwo', event.target.value)} /></Field><Field label="收益三"><input value={form.benefitThree} maxLength={80} onChange={(event) => update('benefitThree', event.target.value)} /></Field></div></FormSection>
       <FormSection title="课程安排" description="day 0 表示本周第一天。"><div className="item-list">{form.items.map((item, index) => <div className="plan-item" key={`${item.courseId}-${index}`}><span className="item-index">{index + 1}</span><select value={item.courseId} onChange={(event) => setItem(index, { courseId: Number(event.target.value) })}>{courses.map((course) => <option key={course.id} value={course.id}>{course.title}</option>)}</select><label><span>第几天</span><input type="number" min="0" max="30" value={item.dayOffset} onChange={(event) => setItem(index, { dayOffset: Number(event.target.value) })} /></label><button type="button" className="icon-button danger" onClick={() => update('items', form.items.filter((_, itemIndex) => itemIndex !== index))} aria-label="移除课程"><Trash2 size={17} /></button></div>)}{courses.length ? <button type="button" className="button dashed" onClick={addItem}><Plus size={17} />添加课程</button> : <p className="muted">请先发布至少一节课程。</p>}</div></FormSection>
       <FormSection title="启用设置"><label className="switch-row"><input type="checkbox" checked={form.active} onChange={(event) => update('active', event.target.checked)} /><span><strong>向用户开放此计划</strong><small>关闭后不再出现在可选计划中</small></span></label></FormSection>
     </form>
@@ -549,7 +572,7 @@ function DeviceCreator({ models, onClose, onCreated }: { models: DeviceModelRow[
       onCreated(created)
     } catch (reason) { setError(reason instanceof Error ? reason.message : '设备保存失败') } finally { setBusy(false) }
   }
-  return <SidePanel title="新增设备" subtitle="选择型号后生成绑定二维码" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" form="device-form" disabled={busy || models.length === 0}>{busy ? '正在生成' : <><QrCode size={17} />生成二维码</>}</button></div>}>
+  return <SidePanel title="新增设备" subtitle="选择型号后自动生成下一条 SN" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" form="device-form" disabled={busy || models.length === 0}>{busy ? '正在创建' : <><Plus size={17} />创建设备</>}</button></div>}>
     <form id="device-form" className="editor-form" onSubmit={submit}>{error && <div className="form-error">{error}</div>}{models.length === 0 && <div className="form-error" role="alert">请先在“设备型号”中创建至少一个型号。</div>}
       <FormSection title="设备型号"><Field label="设备型号" required><select value={deviceModel} onChange={(event) => setDeviceModel(event.target.value)} required disabled={models.length === 0}>{models.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select></Field></FormSection>
     </form>
@@ -593,7 +616,8 @@ function useResource<T>(path: string) {
     api<T>(path).then((result) => { if (active) setData(result) }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : '数据加载失败') }).finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [path, version])
-  return { data, loading, error, reload: () => setVersion((current) => current + 1) }
+  const reload = useCallback(() => setVersion((current) => current + 1), [])
+  return { data, loading, error, reload }
 }
 
 function Page({ title, description, action, children }: { title: string; description: string; action?: ReactNode; children: ReactNode }) {
@@ -628,13 +652,13 @@ function SidePanel({ title, subtitle, onClose, children, footer, wide }: { title
   return <div className="panel-layer" role="presentation"><button className="panel-scrim" onClick={onClose} aria-label="关闭编辑面板" /><aside className={`side-panel ${wide ? 'wide' : ''}`} aria-modal="true" role="dialog" aria-labelledby="panel-title"><header><div><h2 id="panel-title">{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button className="icon-button" onClick={onClose} aria-label="关闭"><X size={20} /></button></header><div className="panel-body">{children}</div>{footer && <footer>{footer}</footer>}</aside></div>
 }
 
-function DeviceQrDialog({ device, onClose }: { device: DeviceRow; onClose: () => void }) {
+function DeviceLabelDialog({ device, onClose }: { device: DeviceRow; onClose: () => void }) {
   const [url, setUrl] = useState('')
   const [error, setError] = useState('')
   useEffect(() => {
     let objectUrl = ''
     let active = true
-    apiBlob(`/devices/${device.id}/qr-code`).then((blob) => {
+    apiBlob(`/devices/${device.id}/label`).then((blob) => {
       objectUrl = URL.createObjectURL(blob)
       if (active) setUrl(objectUrl)
       else URL.revokeObjectURL(objectUrl)
@@ -644,14 +668,14 @@ function DeviceQrDialog({ device, onClose }: { device: DeviceRow; onClose: () =>
   const download = () => {
     if (!url) return
     const link = document.createElement('a')
-    link.href = url; link.download = `${device.serialNumber}-qr.png`; link.click()
+    link.href = url; link.download = `${device.serialNumber}-label.png`; link.click()
   }
   return <div className="dialog-layer" role="presentation"><div className="dialog qr-dialog" role="dialog" aria-modal="true" aria-labelledby="qr-title">
     <div className="qr-dialog-heading"><span><QrCode size={22} /></span><button className="icon-button" onClick={onClose} aria-label="关闭"><X size={20} /></button></div>
-    <h2 id="qr-title">{device.deviceModel}</h2><p>打印或贴附此二维码。用户登录小程序后扫码，即可将设备绑定到当前账号。</p>
-    <div className="qr-preview">{error ? <div className="form-error" role="alert">{error}</div> : url ? <img src={url} alt={`${device.deviceModel}绑定二维码`} /> : <LoaderCircle className="spin" size={28} />}</div>
-    <div className="qr-device-meta"><span>序列号</span><code>{device.serialNumber}</code></div>
-    <div className="dialog-actions"><button className="button secondary" onClick={onClose}>关闭</button><button className="button primary" onClick={download} disabled={!url}><Download size={17} />下载二维码</button></div>
+    <h2 id="qr-title">{device.deviceModel}</h2><p>下载并贴附此设备标签。二维码统一打开小程序绑定页，用户再输入标签上的 SN 码完成绑定。</p>
+    <div className="qr-preview">{error ? <div className="form-error" role="alert">{error}</div> : url ? <img src={url} alt={`${device.deviceModel}设备标签`} /> : <LoaderCircle className="spin" size={28} />}</div>
+    <div className="qr-device-meta"><span>SN 码</span><code>{device.serialNumber}</code></div>
+    <div className="dialog-actions"><button className="button secondary" onClick={onClose}>关闭</button><button className="button primary" onClick={download} disabled={!url}><Download size={17} />下载设备标签</button></div>
   </div></div>
 }
 
