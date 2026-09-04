@@ -29,7 +29,7 @@ export type CourseRow = {
 export type ExerciseRow = {
   id: number; name: string; bodyPart: string; level: string; equipment: string; suggestedSets: number
   target: string; cue: string; safetyTip: string; coverImage?: string; videoUrl?: string
-  videoCoverImage?: string; videoDurationSeconds?: number; status: Status; sortOrder: number
+  videoCoverImage?: string; videoDurationSeconds?: number; backgroundMusicUrl?: string; status: Status; sortOrder: number
   createdAt: string; updatedAt: string
 }
 
@@ -57,7 +57,13 @@ export type FeedbackRow = {
 }
 
 export type DeviceRow = {
-  id: number; serialNumber: string; deviceModel: string; bound: boolean; createdAt: string; updatedAt: string
+  id: number; serialNumber: string; deviceModel: string; brand?: string; deviceName?: string
+  deviceSource: 'OWN' | 'THIRD_PARTY'; bound: boolean; boundUserId?: number
+  boundUserName?: string; boundUserPhone?: string; createdAt: string; updatedAt: string
+}
+
+export type DeviceBatchCreateResult = {
+  count: number; firstSerialNumber: string; lastSerialNumber: string
 }
 
 export type DeviceModelRow = {

@@ -34,11 +34,12 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   return parseResponse<T>(response)
 }
 
-export async function apiBlob(path: string): Promise<Blob> {
-  const headers = new Headers()
+export async function apiBlob(path: string, options: RequestInit = {}): Promise<Blob> {
+  const headers = new Headers(options.headers)
   const token = getToken()
   if (token) headers.set('Authorization', `Bearer ${token}`)
-  const response = await fetch(`${API_BASE}/api/admin${path}`, { headers })
+  if (options.body && !(options.body instanceof FormData)) headers.set('Content-Type', 'application/json')
+  const response = await fetch(`${API_BASE}/api/admin${path}`, { ...options, headers })
   if (!response.ok) {
     const data = await response.json().catch(() => ({})) as ApiError
     if (response.status === 401) {
@@ -54,7 +55,7 @@ export function json(method: string, body: unknown): RequestInit {
   return { method, body: JSON.stringify(body) }
 }
 
-export async function uploadMedia(file: File, kind: 'image' | 'video') {
+export async function uploadMedia(file: File, kind: 'image' | 'video' | 'audio') {
   const form = new FormData()
   form.append('file', file)
   form.append('kind', kind)
@@ -68,6 +69,12 @@ const MEDIA_EXTENSIONS: Record<string, string> = {
   'video/mp4': '.mp4',
   'video/webm': '.webm',
   'video/quicktime': '.mov',
+  'audio/mpeg': '.mp3',
+  'audio/mp4': '.m4a',
+  'audio/x-m4a': '.m4a',
+  'audio/wav': '.wav',
+  'audio/x-wav': '.wav',
+  'audio/ogg': '.ogg',
 }
 
 export async function downloadMedia(path: string, preferredName?: string) {

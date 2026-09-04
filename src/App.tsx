@@ -1,13 +1,13 @@
 import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Activity, BarChart3, BookOpen, CalendarDays, Check, ChevronLeft, ChevronRight,
+  Activity, BarChart3, BookOpen, CalendarDays, Check, ChevronLeft, ChevronRight, FileSpreadsheet,
   ClipboardList, Dumbbell, FileClock, Flag, Image as ImageIcon, LayoutDashboard, LoaderCircle,
-  Download, LogOut, Menu, MessageSquareText, MoreHorizontal, Pencil, Plus, QrCode, RefreshCw, Search,
-  ShieldCheck, Tags, Trash2, Upload, UserRound, UsersRound, Video, X,
+  Download, ListPlus, LogOut, Menu, MessageSquareText, MoreHorizontal, Pencil, Plus, QrCode, RefreshCw, Search,
+  Music, ShieldCheck, Tags, Trash2, Upload, UserRound, UsersRound, Video, X,
 } from 'lucide-react'
 import { api, apiBlob, downloadMedia, getToken, json, mediaUrl, setToken, uploadMedia } from './api'
 import type {
-  AuditRow, CampaignRow, CourseRow, Dashboard, DeviceModelRow, DeviceRow, ExerciseRow, FeedbackRow, PageResult,
+  AuditRow, CampaignRow, CourseRow, Dashboard, DeviceBatchCreateResult, DeviceModelRow, DeviceRow, ExerciseRow, FeedbackRow, PageResult,
   PlanItem, PlanRow, Status, UserRow, WorkoutRow,
 } from './types'
 
@@ -39,6 +39,12 @@ const formatter = new Intl.DateTimeFormat('zh-CN', {
 
 function formatDate(value?: string) {
   return value ? formatter.format(new Date(value)) : '未记录'
+}
+
+function formatMediaDuration(value?: number) {
+  const seconds = Math.max(0, Math.round(Number(value) || 0))
+  const minutes = Math.floor(seconds / 60)
+  return `${String(minutes).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
 }
 
 function routeFromHash(): RouteKey {
@@ -348,34 +354,102 @@ function CampaignsPage() {
 function DevicesPage() {
   const [query, setQuery] = useState('')
   const [search, setSearch] = useState('')
+  const [deviceQuery, setDeviceQuery] = useState('')
+  const [deviceSearch, setDeviceSearch] = useState('')
+  const [boundUser, setBoundUser] = useState('')
+  const [boundUserSearch, setBoundUserSearch] = useState('')
   const [deviceModel, setDeviceModel] = useState('ALL')
+  const [brand, setBrand] = useState('ALL')
+  const [deviceSource, setDeviceSource] = useState('ALL')
+  const [bindingStatus, setBindingStatus] = useState('ALL')
+  const [createdFrom, setCreatedFrom] = useState('')
+  const [createdTo, setCreatedTo] = useState('')
   const [page, setPage] = useState(1)
-  const [creating, setCreating] = useState(false)
+  const [creating, setCreating] = useState<'single' | 'batch' | null>(null)
+  const [batchCreated, setBatchCreated] = useState<DeviceBatchCreateResult | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState('')
   const [deleting, setDeleting] = useState<DeviceRow | null>(null)
   const [labelDevice, setLabelDevice] = useState<DeviceRow | null>(null)
-  const path = `/devices?query=${encodeURIComponent(search)}&deviceModel=${encodeURIComponent(deviceModel)}&page=${page}&pageSize=20`
+  const deviceParams = new URLSearchParams({ serialNumber: search, deviceQuery: deviceSearch, boundUser: boundUserSearch, deviceModel, brand, deviceSource, bindingStatus, createdFrom, createdTo, page: String(page), pageSize: '20' })
+  const path = `/devices?${deviceParams.toString()}`
   const { data, loading, error, reload } = useResource<PageResult<DeviceRow>>(path)
   const models = useResource<DeviceModelRow[]>('/device-models')
+  const selectableItems = data?.items.filter((item) => item.deviceSource !== 'THIRD_PARTY') || []
+  const allCurrentSelected = selectableItems.length > 0 && selectableItems.every((item) => selectedIds.has(item.id))
   const reloadAll = () => { reload(); models.reload() }
+  const resetFilters = () => {
+    setQuery(''); setSearch(''); setDeviceQuery(''); setDeviceSearch(''); setBoundUser(''); setBoundUserSearch('')
+    setDeviceModel('ALL'); setBrand('ALL'); setDeviceSource('ALL')
+    setBindingStatus('ALL'); setCreatedFrom(''); setCreatedTo(''); setPage(1)
+  }
+  const toggleDevice = (id: number, checked: boolean) => {
+    setExportError('')
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (!checked) next.delete(id)
+      else if (next.size < 100) next.add(id)
+      else setExportError('单次最多选择 100 台设备。')
+      return next
+    })
+  }
+  const toggleCurrentPage = () => {
+    setExportError('')
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (allCurrentSelected) selectableItems.forEach((item) => next.delete(item.id))
+      else selectableItems.forEach((item) => { if (next.size < 100) next.add(item.id) })
+      return next
+    })
+  }
+  const exportDevices = async () => {
+    if (!selectedIds.size || exporting) return
+    setExporting(true); setExportError('')
+    try {
+      const blob = await apiBlob('/devices/export', json('POST', { deviceIds: Array.from(selectedIds) }))
+      const objectUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = `ARVELLO设备标签-${new Date().toISOString().slice(0, 10)}.xlsx`
+      document.body.appendChild(link); link.click(); link.remove()
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 0)
+    } catch (reason) { setExportError(reason instanceof Error ? reason.message : '设备导出失败') } finally { setExporting(false) }
+  }
   const remove = async () => {
     if (!deleting) return
     await api(`/devices/${deleting.id}`, { method: 'DELETE' })
+    setSelectedIds((current) => { const next = new Set(current); next.delete(deleting.id); return next })
     setDeleting(null); reload()
   }
   return <Page title="设备管理" description="按型号生成递增 SN；设备标签使用统一的小程序入口二维码。"
-    action={<button className="button primary" onClick={() => setCreating(true)}><Plus size={17} />新增设备</button>}>
-    <Toolbar onSubmit={() => { setSearch(query); setPage(1) }} query={query} setQuery={setQuery} placeholder="搜索型号或序列号" onRefresh={reloadAll} loading={loading || models.loading}>
-      <label className="select-field"><span className="sr-only">设备型号</span><select value={deviceModel} onChange={(event) => { setDeviceModel(event.target.value); setPage(1) }}><option value="ALL">全部型号</option>{models.data?.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select></label>
+    action={<div className="page-action-group"><button className="button secondary" onClick={() => setCreating('batch')}><ListPlus size={17} />批量新增</button><button className="button primary" onClick={() => setCreating('single')}><Plus size={17} />新增设备</button></div>}>
+    {batchCreated && <div className="success-banner" role="status"><Check size={19} /><span><strong>已新增 {batchCreated.count} 台设备</strong><small>SN：{batchCreated.firstSerialNumber} 至 {batchCreated.lastSerialNumber}</small></span><button className="icon-button" onClick={() => setBatchCreated(null)} aria-label="关闭提示" title="关闭提示"><X size={17} /></button></div>}
+    <Toolbar className="device-toolbar" onSubmit={() => { setSearch(query); setDeviceSearch(deviceQuery); setBoundUserSearch(boundUser); setPage(1) }} query={query} setQuery={setQuery} placeholder="搜索序列号" onRefresh={reloadAll} loading={loading || models.loading}>
+      <div className="device-filter-grid" aria-label="设备筛选条件">
+        <label className="filter-text-field"><span className="sr-only">设备名称或型号</span><input value={deviceQuery} onChange={(event) => setDeviceQuery(event.target.value)} placeholder="设备名称或型号" /></label>
+        <label className="select-field"><span className="sr-only">设备型号</span><select value={deviceModel} onChange={(event) => { setDeviceModel(event.target.value); setPage(1) }}><option value="ALL">全部型号</option>{models.data?.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select></label>
+        <label className="select-field"><span className="sr-only">设备品牌</span><select value={brand} onChange={(event) => { setBrand(event.target.value); setPage(1) }}><option value="ALL">全部品牌</option><option value="Manhart">Manhart</option><option value="ARVELLO">ARVELLO</option><option value="UNBRANDED">第三方</option></select></label>
+        <label className="select-field"><span className="sr-only">设备来源</span><select value={deviceSource} onChange={(event) => { setDeviceSource(event.target.value); setPage(1) }}><option value="ALL">全部来源</option><option value="OWN">自有设备</option><option value="THIRD_PARTY">第三方设备</option></select></label>
+        <label className="select-field"><span className="sr-only">绑定状态</span><select value={bindingStatus} onChange={(event) => { setBindingStatus(event.target.value); setPage(1) }}><option value="ALL">全部状态</option><option value="BOUND">已绑定</option><option value="UNBOUND">未绑定</option></select></label>
+        <label className="filter-text-field"><span className="sr-only">绑定用户</span><input value={boundUser} onChange={(event) => setBoundUser(event.target.value)} placeholder="绑定用户、手机号或 ID" /></label>
+        <label className="date-filter"><span>创建时间从</span><input type="date" value={createdFrom} max={createdTo || undefined} onChange={(event) => { setCreatedFrom(event.target.value); setPage(1) }} /></label>
+        <label className="date-filter"><span>至</span><input type="date" value={createdTo} min={createdFrom || undefined} onChange={(event) => { setCreatedTo(event.target.value); setPage(1) }} /></label>
+      </div>
+      <button className="button ghost filter-reset" type="button" onClick={resetFilters}>重置筛选</button>
     </Toolbar>
     {error && <ErrorBanner message={error} onRetry={reload} />}
     {models.error && <ErrorBanner message={models.error} onRetry={models.reload} />}
-    <TableSurface loading={loading} empty={!data?.items.length} emptyText="还没有设备" emptyHint="选择设备型号后，系统会生成唯一 SN 和可下载的设备标签。">
-      <Table><thead><tr><th>序列号</th><th>型号</th><th>状态</th><th>创建时间</th><th><span className="sr-only">操作</span></th></tr></thead>
-        <tbody>{data?.items.map((item) => <tr key={item.id}><td><code>{item.serialNumber}</code></td><td>{item.deviceModel}</td><td><Badge status={item.bound ? 'BOUND' : 'UNBOUND'} /></td><td>{formatDate(item.createdAt)}</td><td><div className="row-actions"><button className="icon-button" onClick={() => setLabelDevice(item)} aria-label="查看设备标签" title="查看设备标签"><QrCode size={17} /></button><button className="icon-button danger" onClick={() => setDeleting(item)} aria-label="删除" title="删除"><Trash2 size={17} /></button></div></td></tr>)}</tbody>
+    {selectedIds.size > 0 && <div className="bulk-toolbar" aria-label="批量操作"><span><strong>已选择 {selectedIds.size} 台</strong><small>翻页后仍会保留选择，单次最多 100 台</small></span><button className="button ghost small" onClick={() => { setSelectedIds(new Set()); setExportError('') }}>取消选择</button><button className="button primary" onClick={exportDevices} disabled={exporting}>{exporting ? <><LoaderCircle className="spin" size={17} />正在生成 Excel</> : <><FileSpreadsheet size={17} />导出 Excel</>}</button></div>}
+    {exportError && <div className="form-error export-error" role="alert">{exportError}</div>}
+    <TableSurface loading={loading} empty={!data?.items.length} emptyText="还没有设备" emptyHint="选择设备型号和品牌后，系统会生成唯一 SN 和可下载的设备标签。">
+      <Table><thead><tr><th className="selection-cell"><input type="checkbox" checked={allCurrentSelected} disabled={!selectableItems.length} onChange={toggleCurrentPage} aria-label="选择当前页自有设备" title="选择当前页自有设备" /></th><th>序列号</th><th>设备</th><th>品牌</th><th>来源</th><th>绑定用户</th><th>状态</th><th>创建时间</th><th><span className="sr-only">操作</span></th></tr></thead>
+        <tbody>{data?.items.map((item) => <tr key={item.id} className={selectedIds.has(item.id) ? 'selected-row' : ''}><td className="selection-cell"><input type="checkbox" checked={selectedIds.has(item.id)} disabled={item.deviceSource === 'THIRD_PARTY' || (!selectedIds.has(item.id) && selectedIds.size >= 100)} onChange={(event) => toggleDevice(item.id, event.target.checked)} aria-label={item.deviceSource === 'THIRD_PARTY' ? `${item.serialNumber} 为第三方设备，不能导出标签` : `选择设备 ${item.serialNumber}`} title={item.deviceSource === 'THIRD_PARTY' ? '第三方设备不生成品牌设备标签' : '选择导出'} /></td><td><code>{item.serialNumber}</code></td><td><div className="cell-stack"><span className="cell-title">{item.deviceName || item.deviceModel}</span>{item.deviceName && item.deviceName !== item.deviceModel && <small>{item.deviceModel}</small>}</div></td><td>{item.brand || '第三方'}</td><td>{item.deviceSource === 'THIRD_PARTY' ? '第三方设备' : '自有设备'}</td><td>{item.boundUserId ? <div className="cell-stack"><span>{item.boundUserName || `用户 #${item.boundUserId}`}</span>{item.boundUserPhone && <small>{item.boundUserPhone}</small>}</div> : '未绑定'}</td><td><Badge status={item.bound ? 'BOUND' : 'UNBOUND'} /></td><td>{formatDate(item.createdAt)}</td><td><div className="row-actions">{item.deviceSource !== 'THIRD_PARTY' && <button className="icon-button" onClick={() => setLabelDevice(item)} aria-label="查看设备标签" title="查看设备标签"><QrCode size={17} /></button>}<button className="icon-button danger" onClick={() => setDeleting(item)} aria-label="删除" title="删除"><Trash2 size={17} /></button></div></td></tr>)}</tbody>
       </Table>
     </TableSurface>
     {data && <Pagination data={data} onPage={setPage} />}
-    {creating && <DeviceCreator models={models.data || []} onClose={() => setCreating(false)} onCreated={(created) => { setCreating(false); reload(); setLabelDevice(created) }} />}
+    {creating === 'single' && <DeviceCreator models={models.data || []} onClose={() => setCreating(null)} onCreated={(created) => { setCreating(null); setBatchCreated(null); reloadAll(); setLabelDevice(created) }} />}
+    {creating === 'batch' && <DeviceBatchCreator models={models.data || []} onClose={() => setCreating(null)} onCreated={(created) => { setCreating(null); setBatchCreated(created); setPage(1); reloadAll() }} />}
     {labelDevice && <DeviceLabelDialog device={labelDevice} onClose={() => setLabelDevice(null)} />}
     <ConfirmDialog open={!!deleting} title="删除设备？" message={deleting ? `序列号“${deleting.serialNumber}”删除后无法恢复。已绑定设备不能删除。` : ''} confirmLabel="删除设备" onCancel={() => setDeleting(null)} onConfirm={remove} />
   </Page>
@@ -484,7 +558,7 @@ function CourseEditor({ value, onClose, onSaved }: { value: CourseRow | null; on
     <form id="course-form" className="editor-form" onSubmit={submit}>
       {errors && <div className="form-error" role="alert">{errors}</div>}
       <FormSection title="基本信息"><div className="form-grid"><Field label="课程名称" required><input value={form.title} maxLength={80} onChange={(event) => update('title', event.target.value)} required /></Field><Field label="课程类型" required><input value={form.type} maxLength={30} onChange={(event) => update('type', event.target.value)} required /></Field><Field label="难度" required><input value={form.level} maxLength={30} onChange={(event) => update('level', event.target.value)} required /></Field><Field label="所需器械" required><input value={form.equipment} maxLength={80} onChange={(event) => update('equipment', event.target.value)} required /></Field><Field label="课程时长（分钟）" required><input type="number" min="1" max="600" value={form.durationMinutes} onChange={(event) => update('durationMinutes', Number(event.target.value))} required /></Field><Field label="排序"><input type="number" value={form.sortOrder} onChange={(event) => update('sortOrder', Number(event.target.value))} /></Field></div><Field label="课程简介" required hint={`${form.summary.length}/300`}><textarea rows={4} value={form.summary} maxLength={300} onChange={(event) => update('summary', event.target.value)} required /></Field></FormSection>
-      <FormSection title="课程媒体"><div className="media-grid"><MediaUploader label="课程封面" kind="image" value={form.coverImage} onChange={(next) => update('coverImage', next)} /><MediaUploader label="训练视频" kind="video" value={form.videoUrl} onChange={(next) => update('videoUrl', next)} /></div></FormSection>
+      <FormSection title="课程媒体"><div className="media-grid"><MediaUploader label="课程封面" kind="image" value={form.coverImage} onChange={(next) => update('coverImage', next)} /><MediaUploader label="训练视频" kind="video" value={form.videoUrl} poster={form.videoCoverImage || form.coverImage} durationSeconds={form.videoDurationSeconds} onDurationChange={(next) => update('videoDurationSeconds', next)} onChange={(next) => update('videoUrl', next)} /></div></FormSection>
       <FormSection title="动作编排" description="按勾选顺序保存到课程中。"><div className="check-list">{exercises.length ? exercises.map((item) => <label className="check-row" key={item.id}><input type="checkbox" checked={form.exerciseIds.includes(item.id)} onChange={(event) => update('exerciseIds', event.target.checked ? [...form.exerciseIds, item.id] : form.exerciseIds.filter((id) => id !== item.id))} /><span><strong>{item.name}</strong><small>{item.bodyPart} · {item.target}</small></span></label>) : <p className="muted">请先创建动作，再进行课程编排。</p>}</div></FormSection>
       <FormSection title="发布设置"><div className="form-grid"><Field label="状态"><select value={form.status} onChange={(event) => update('status', event.target.value)}><option value="DRAFT">草稿</option><option value="PUBLISHED">发布</option><option value="ARCHIVED">下架</option></select></Field></div></FormSection>
     </form>
@@ -497,7 +571,8 @@ function ExerciseEditor({ value, onClose, onSaved }: { value: ExerciseRow | null
     equipment: value?.equipment || '无器械', suggestedSets: value?.suggestedSets || 2,
     target: value?.target || '', cue: value?.cue || '', safetyTip: value?.safetyTip || '',
     coverImage: value?.coverImage || '', videoUrl: value?.videoUrl || '', videoCoverImage: value?.videoCoverImage || '',
-    videoDurationSeconds: value?.videoDurationSeconds || 0, status: value?.status || 'DRAFT' as Status, sortOrder: value?.sortOrder || 0,
+    videoDurationSeconds: value?.videoDurationSeconds || 0, backgroundMusicUrl: value?.backgroundMusicUrl || '',
+    status: value?.status || 'DRAFT' as Status, sortOrder: value?.sortOrder || 0,
   })
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
   const update = (key: string, next: unknown) => setForm((current) => ({ ...current, [key]: next }))
@@ -505,7 +580,7 @@ function ExerciseEditor({ value, onClose, onSaved }: { value: ExerciseRow | null
   return <SidePanel title={value ? '编辑动作' : '新增动作'} subtitle="动作可被多个课程重复使用" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>继续编辑后再说</button><button className="button primary" type="submit" form="exercise-form" disabled={busy}>{busy ? '正在保存' : '保存动作'}</button></div>}>
     <form id="exercise-form" className="editor-form" onSubmit={submit}>{error && <div className="form-error">{error}</div>}
       <FormSection title="基本信息"><div className="form-grid"><Field label="动作名称" required><input value={form.name} onChange={(event) => update('name', event.target.value)} required /></Field><Field label="训练部位" required><input value={form.bodyPart} onChange={(event) => update('bodyPart', event.target.value)} required /></Field><Field label="难度" required><input value={form.level} onChange={(event) => update('level', event.target.value)} required /></Field><Field label="所需器械" required><input value={form.equipment} onChange={(event) => update('equipment', event.target.value)} required /></Field><Field label="建议组数"><input type="number" min="1" max="20" value={form.suggestedSets} onChange={(event) => update('suggestedSets', Number(event.target.value))} /></Field><Field label="训练目标" required><input value={form.target} onChange={(event) => update('target', event.target.value)} placeholder="例如 30 秒" required /></Field></div><Field label="动作要领" required><textarea rows={3} value={form.cue} onChange={(event) => update('cue', event.target.value)} required /></Field><Field label="安全提示" required><textarea rows={3} value={form.safetyTip} onChange={(event) => update('safetyTip', event.target.value)} required /></Field></FormSection>
-      <FormSection title="动作媒体"><div className="media-grid"><MediaUploader label="动作封面" kind="image" value={form.coverImage} onChange={(next) => update('coverImage', next)} /><MediaUploader label="示范视频" kind="video" value={form.videoUrl} onChange={(next) => update('videoUrl', next)} /></div></FormSection>
+      <FormSection title="动作媒体" description="示范视频原声与背景音乐将作为两条独立音轨提供给小程序用户。"><div className="media-grid"><MediaUploader label="动作封面" kind="image" value={form.coverImage} onChange={(next) => update('coverImage', next)} /><MediaUploader label="示范视频" kind="video" value={form.videoUrl} poster={form.videoCoverImage || form.coverImage} durationSeconds={form.videoDurationSeconds} onDurationChange={(next) => update('videoDurationSeconds', next)} onChange={(next) => update('videoUrl', next)} /><MediaUploader label="背景音乐" kind="audio" value={form.backgroundMusicUrl} onChange={(next) => update('backgroundMusicUrl', next)} /></div></FormSection>
       <FormSection title="发布设置"><div className="form-grid"><Field label="状态"><select value={form.status} onChange={(event) => update('status', event.target.value)}><option value="DRAFT">草稿</option><option value="PUBLISHED">发布</option><option value="ARCHIVED">下架</option></select></Field><Field label="排序"><input type="number" value={form.sortOrder} onChange={(event) => update('sortOrder', Number(event.target.value))} /></Field></div></FormSection>
     </form>
   </SidePanel>
@@ -564,22 +639,43 @@ function DeviceModelEditor({ value, onClose, onSaved }: { value: DeviceModelRow 
 
 function DeviceCreator({ models, onClose, onCreated }: { models: DeviceModelRow[]; onClose: () => void; onCreated: (created: DeviceRow) => void }) {
   const [deviceModel, setDeviceModel] = useState(models[0]?.name || '')
+  const [brand, setBrand] = useState('')
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setBusy(true); setError('')
     try {
-      const created = await api<DeviceRow>('/devices', json('POST', { deviceModel }))
+      const created = await api<DeviceRow>('/devices', json('POST', { deviceModel, brand }))
       onCreated(created)
     } catch (reason) { setError(reason instanceof Error ? reason.message : '设备保存失败') } finally { setBusy(false) }
   }
-  return <SidePanel title="新增设备" subtitle="选择型号后自动生成下一条 SN" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" form="device-form" disabled={busy || models.length === 0}>{busy ? '正在创建' : <><Plus size={17} />创建设备</>}</button></div>}>
+  return <SidePanel title="新增设备" subtitle="选择品牌和型号后自动生成下一条 SN" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" form="device-form" disabled={busy || models.length === 0 || !brand}>{busy ? '正在创建' : <><Plus size={17} />创建设备</>}</button></div>}>
     <form id="device-form" className="editor-form" onSubmit={submit}>{error && <div className="form-error">{error}</div>}{models.length === 0 && <div className="form-error" role="alert">请先在“设备型号”中创建至少一个型号。</div>}
-      <FormSection title="设备型号"><Field label="设备型号" required><select value={deviceModel} onChange={(event) => setDeviceModel(event.target.value)} required disabled={models.length === 0}>{models.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select></Field></FormSection>
+      <FormSection title="设备信息"><Field label="设备品牌" required hint="品牌创建后会显示在设备列表中"><select value={brand} onChange={(event) => setBrand(event.target.value)} required><option value="" disabled>请选择品牌</option><option value="Manhart">Manhart</option><option value="ARVELLO">ARVELLO</option></select></Field><Field label="设备型号" required><select value={deviceModel} onChange={(event) => setDeviceModel(event.target.value)} required disabled={models.length === 0}>{models.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select></Field></FormSection>
     </form>
   </SidePanel>
 }
 
-function MediaUploader({ label, kind, value, onChange }: { label: string; kind: 'image' | 'video'; value: string; onChange: (value: string) => void }) {
+function DeviceBatchCreator({ models, onClose, onCreated }: { models: DeviceModelRow[]; onClose: () => void; onCreated: (created: DeviceBatchCreateResult) => void }) {
+  const [deviceModel, setDeviceModel] = useState(models[0]?.name || '')
+  const [brand, setBrand] = useState('')
+  const [quantity, setQuantity] = useState(10)
+  const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
+  const submit = async (event: FormEvent) => {
+    event.preventDefault(); setBusy(true); setError('')
+    try {
+      const created = await api<DeviceBatchCreateResult>('/devices/batch', json('POST', { deviceModel, brand, quantity }))
+      onCreated(created)
+    } catch (reason) { setError(reason instanceof Error ? reason.message : '设备批量新增失败') } finally { setBusy(false) }
+  }
+  const validQuantity = Number.isInteger(quantity) && quantity >= 1 && quantity <= 100
+  return <SidePanel title="批量新增设备" subtitle="一次生成同品牌、同型号的连续 SN" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" form="device-batch-form" disabled={busy || models.length === 0 || !brand || !validQuantity}>{busy ? <><LoaderCircle className="spin" size={17} />正在生成</> : <><ListPlus size={17} />生成 {validQuantity ? quantity : 0} 台设备</>}</button></div>}>
+    <form id="device-batch-form" className="editor-form" onSubmit={submit}>{error && <div className="form-error" role="alert">{error}</div>}{models.length === 0 && <div className="form-error" role="alert">请先在“设备型号”中创建至少一个型号。</div>}
+      <FormSection title="批量信息" description="单次最多新增 100 台"><Field label="设备品牌" required><select value={brand} onChange={(event) => setBrand(event.target.value)} required><option value="" disabled>请选择品牌</option><option value="Manhart">Manhart</option><option value="ARVELLO">ARVELLO</option></select></Field><Field label="设备型号" required><select value={deviceModel} onChange={(event) => setDeviceModel(event.target.value)} required disabled={models.length === 0}>{models.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select></Field><Field label="新增数量" required hint="1 至 100 台"><input type="number" min="1" max="100" step="1" value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} required /></Field><div className="batch-summary" aria-live="polite"><ListPlus size={19} /><span><strong>{validQuantity ? `将生成 ${quantity} 台设备` : '请输入 1 至 100 的整数'}</strong><small>SN 将按所选型号的当前流水号连续生成。</small></span></div></FormSection>
+    </form>
+  </SidePanel>
+}
+
+function MediaUploader({ label, kind, value, poster, durationSeconds, onChange, onDurationChange }: { label: string; kind: 'image' | 'video' | 'audio'; value: string; poster?: string; durationSeconds?: number; onChange: (value: string) => void; onDurationChange?: (value: number) => void }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [downloading, setDownloading] = useState(false)
@@ -589,7 +685,7 @@ function MediaUploader({ label, kind, value, onChange }: { label: string; kind: 
   const upload = async (file?: File) => {
     if (!file) return
     setBusy(true); setError('')
-    try { const result = await uploadMedia(file, kind); onChange(result.url) }
+    try { const result = await uploadMedia(file, kind); if (kind === 'video') onDurationChange?.(0); onChange(result.url) }
     catch (reason) { setError(reason instanceof Error ? reason.message : '上传失败，请重新选择文件') }
     finally { setBusy(false) }
   }
@@ -600,9 +696,18 @@ function MediaUploader({ label, kind, value, onChange }: { label: string; kind: 
     catch (reason) { setError(reason instanceof Error ? reason.message : '下载失败，请稍后重试') }
     finally { setDownloading(false) }
   }
-  return <div className="uploader"><div className="uploader-label"><strong>{label}</strong><small>{kind === 'image' ? 'JPG、PNG 或 WebP' : 'MP4、WebM 或 MOV'}</small></div>
-    {value ? <div className="media-preview">{kind === 'image' ? previewFailed ? <div className="media-preview-fallback"><ImageIcon size={25} /><span>图片暂不可预览</span></div> : <img src={mediaUrl(value)} alt={`${label}预览`} onError={() => setPreviewFailed(true)} /> : <div className="video-preview"><Video size={28} /><span>{value.split('/').pop()}</span></div>}<div className="media-preview-actions"><button type="button" className="icon-button" onClick={download} disabled={downloading} aria-label={`下载${label}`} title={`下载${label}`}>{downloading ? <LoaderCircle className="spin" size={17} /> : <Download size={17} />}</button><div className="media-preview-edit-actions"><button type="button" className="button secondary small" onClick={() => inputRef.current?.click()}>更换{kind === 'image' ? '图片' : '视频'}</button><button type="button" className="button ghost small danger-text" onClick={() => onChange('')}>移除</button></div></div></div> : <button type="button" className="upload-drop" onClick={() => inputRef.current?.click()} disabled={busy}>{busy ? <LoaderCircle className="spin" size={24} /> : <Upload size={24} />}<strong>{busy ? '正在上传' : `选择${kind === 'image' ? '图片' : '视频'}`}</strong><span>{kind === 'image' ? '建议使用 16:9 横图' : '文件大小由服务器配置限制'}</span></button>}
-    <input ref={inputRef} className="sr-only" type="file" accept={kind === 'image' ? 'image/jpeg,image/png,image/webp' : 'video/mp4,video/webm,video/quicktime'} onChange={(event) => upload(event.target.files?.[0])} />{error && <p className="field-error">{error}</p>}</div>
+  const kindLabel = kind === 'image' ? '图片' : kind === 'video' ? '视频' : '音频'
+  const formats = kind === 'image' ? 'JPG、PNG 或 WebP' : kind === 'video' ? 'MP4、WebM 或 MOV' : 'MP3、M4A、WAV 或 OGG'
+  const accept = kind === 'image' ? 'image/jpeg,image/png,image/webp' : kind === 'video' ? 'video/mp4,video/webm,video/quicktime' : 'audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/x-wav,audio/ogg'
+  const filename = value.split('/').pop()
+  const preview = kind === 'image'
+    ? previewFailed ? <div className="media-preview-fallback"><ImageIcon size={25} /><span>图片暂不可预览</span></div> : <img src={mediaUrl(value)} alt={`${label}预览`} onError={() => setPreviewFailed(true)} />
+    : kind === 'video'
+      ? previewFailed ? <div className="media-preview-fallback"><Video size={25} /><span>视频暂不可播放</span></div> : <><video className="video-preview-player" src={mediaUrl(value)} poster={poster ? mediaUrl(poster) : undefined} controls preload="metadata" playsInline onLoadedMetadata={(event) => { const seconds = Math.round(event.currentTarget.duration); if (Number.isFinite(seconds) && seconds > 0 && seconds !== durationSeconds) onDurationChange?.(seconds) }} onError={() => setPreviewFailed(true)} /><div className="video-preview-meta"><Video size={15} /><span title={filename}>{filename}</span><small>{durationSeconds ? formatMediaDuration(durationSeconds) : '读取时长中'}</small></div></>
+      : previewFailed ? <div className="media-preview-fallback"><Music size={25} /><span>音频暂不可播放</span></div> : <div className="audio-preview"><div className="audio-preview-meta"><Music size={20} /><span><strong>背景音乐</strong><small title={filename}>{filename}</small></span></div><audio src={mediaUrl(value)} controls preload="metadata" onError={() => setPreviewFailed(true)} /></div>
+  return <div className={`uploader ${kind === 'audio' ? 'audio-uploader' : ''}`}><div className="uploader-label"><strong>{label}</strong><small>{formats}</small></div>
+    {value ? <div className="media-preview">{preview}<div className="media-preview-actions"><button type="button" className="icon-button" onClick={download} disabled={downloading} aria-label={`下载${label}`} title={`下载${label}`}>{downloading ? <LoaderCircle className="spin" size={17} /> : <Download size={17} />}</button><div className="media-preview-edit-actions"><button type="button" className="button secondary small" onClick={() => inputRef.current?.click()}>更换{kindLabel}</button><button type="button" className="button ghost small danger-text" onClick={() => { onChange(''); if (kind === 'video') onDurationChange?.(0) }}>移除</button></div></div></div> : <button type="button" className="upload-drop" onClick={() => inputRef.current?.click()} disabled={busy}>{busy ? <LoaderCircle className="spin" size={24} /> : kind === 'audio' ? <Music size={24} /> : <Upload size={24} />}<strong>{busy ? '正在上传' : `选择${kindLabel}`}</strong><span>{kind === 'image' ? '建议使用 16:9 横图' : kind === 'audio' ? '将在动作播放时循环播放' : '文件大小由服务器配置限制'}</span></button>}
+    <input ref={inputRef} className="sr-only" type="file" accept={accept} onChange={(event) => { upload(event.target.files?.[0]); event.currentTarget.value = '' }} />{error && <p className="field-error">{error}</p>}</div>
 }
 
 function useResource<T>(path: string) {
@@ -624,8 +729,8 @@ function Page({ title, description, action, children }: { title: string; descrip
   return <div className="page"><header className="page-header"><div><p className="eyebrow">ARVELLO 内容运营</p><h1>{title}</h1><p>{description}</p></div>{action && <div className="page-action">{action}</div>}</header>{children}</div>
 }
 
-function Toolbar({ query, setQuery, placeholder, onSubmit, onRefresh, loading, children }: { query: string; setQuery: (value: string) => void; placeholder: string; onSubmit: () => void; onRefresh: () => void; loading: boolean; children?: ReactNode }) {
-  return <form className="toolbar" onSubmit={(event) => { event.preventDefault(); onSubmit() }}><label className="search-field"><Search size={18} /><span className="sr-only">{placeholder}</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={placeholder} /></label>{children}<button className="button secondary" type="submit">搜索</button><button className="icon-button" type="button" onClick={onRefresh} aria-label="刷新列表" title="刷新列表"><RefreshCw className={loading ? 'spin' : ''} size={18} /></button></form>
+function Toolbar({ query, setQuery, placeholder, onSubmit, onRefresh, loading, children, className = '' }: { query: string; setQuery: (value: string) => void; placeholder: string; onSubmit: () => void; onRefresh: () => void; loading: boolean; children?: ReactNode; className?: string }) {
+  return <form className={`toolbar ${className}`.trim()} onSubmit={(event) => { event.preventDefault(); onSubmit() }}><label className="search-field"><Search size={18} /><span className="sr-only">{placeholder}</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={placeholder} /></label>{children}<button className="button secondary" type="submit">搜索</button><button className="icon-button" type="button" onClick={onRefresh} aria-label="刷新列表" title="刷新列表"><RefreshCw className={loading ? 'spin' : ''} size={18} /></button></form>
 }
 
 function StatusSelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
