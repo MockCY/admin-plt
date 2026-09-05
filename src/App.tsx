@@ -6,9 +6,10 @@ import {
   Music, ShieldCheck, Tags, Trash2, Upload, UserRound, UsersRound, Video, X,
 } from 'lucide-react'
 import { api, apiBlob, downloadMedia, getToken, json, mediaUrl, setToken, uploadMedia } from './api'
+import { CourseTrainingEditor } from './CourseTrainingEditor'
 import type {
   AuditRow, CampaignRow, CourseRow, Dashboard, DeviceBatchCreateResult, DeviceModelRow, DeviceRow, ExerciseRow, FeedbackRow, PageResult,
-  PlanItem, PlanRow, Status, UserRow, WorkoutRow,
+  PlanItem, PlanRow, PresenceVisit, Status, UserRow, WorkoutRow,
 } from './types'
 
 type RouteKey = 'dashboard' | 'users' | 'courses' | 'exercises' | 'plans' | 'campaigns' | 'devices' | 'device-models' | 'workouts' | 'feedback' | 'audits'
@@ -29,8 +30,8 @@ const ROUTES: { key: RouteKey; label: string; icon: typeof LayoutDashboard }[] =
 
 const STATUS_LABEL: Record<string, string> = {
   DRAFT: '草稿', PUBLISHED: '已发布', ARCHIVED: '已下架',
-  ACTIVE: '正常', INACTIVE: '停用', SUBMITTED: '待处理', PROCESSING: '处理中', RESOLVED: '已解决',
-  BOUND: '已绑定', UNBOUND: '未绑定',
+  ACTIVE: '正常', INACTIVE: '不可用', SUBMITTED: '待处理', PROCESSING: '处理中', RESOLVED: '已解决',
+  BOUND: '已绑定', UNBOUND: '未绑定', RELEASED: '设备已解绑',
 }
 
 const formatter = new Intl.DateTimeFormat('zh-CN', {
@@ -239,18 +240,49 @@ function UsersPage() {
   const [query, setQuery] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
-  const path = `/users?query=${encodeURIComponent(search)}&page=${page}&pageSize=20`
-  const { data, loading, error, reload } = useResource<PageResult<UserRow>>(path)
-  return <Page title="用户管理" description="用户数据仅供查询，后台不会代替用户修改训练内容。">
-    <Toolbar onSubmit={() => { setSearch(query); setPage(1) }} query={query} setQuery={setQuery} placeholder="搜索昵称或手机号" onRefresh={reload} loading={loading} />
+  const [editing, setEditing] = useState<UserRow | null>(null)
+  const [historyUser, setHistoryUser] = useState<UserRow | null>(null)
+  const [presence, setPresence] = useState('ALL')
+  const path = `/users?query=${encodeURIComponent(search)}&presence=${presence}&page=${page}&pageSize=20`
+  const { data, loading, error, reload } = useResource<PageResult<UserRow>>(path, 15000)
+  return <Page title="用户管理" description="维护用户手机号绑定与账号状态，不代替用户修改训练内容。">
+    <Toolbar onSubmit={() => { setSearch(query); setPage(1) }} query={query} setQuery={setQuery} placeholder="搜索昵称或手机号" onRefresh={reload} loading={loading}>
+      <label className="select-field"><span className="sr-only">在线状态</span><select value={presence} onChange={(event) => { setPresence(event.target.value); setPage(1) }}><option value="ALL">全部在线状态</option><option value="ONLINE">在线</option><option value="OFFLINE">离线</option></select></label>
+    </Toolbar>
     {error && <ErrorBanner message={error} onRetry={reload} />}
-    <TableSurface loading={loading} empty={!data?.items.length} emptyText="还没有用户" emptyHint="用户完成小程序登录后会出现在这里。">
-      <Table><thead><tr><th>用户</th><th>手机号</th><th>训练次数</th><th>累计时长</th><th>状态</th><th>注册时间</th></tr></thead>
-        <tbody>{data?.items.map((item) => <tr key={item.id}><td><div className="user-cell">{item.avatarUrl ? <img src={mediaUrl(item.avatarUrl)} alt="" /> : <span className="mini-avatar">{(item.nickname || '用').slice(0, 1)}</span>}<span><strong>{item.nickname || `用户 ${item.id}`}</strong><small>ID {item.id}</small></span></div></td><td>{item.phone || '未绑定'}</td><td>{item.workoutCount}</td><td>{item.totalMinutes} 分钟</td><td><Badge status={item.status} /></td><td>{formatDate(item.createdAt)}</td></tr>)}</tbody>
+    <TableSurface loading={loading} empty={!data?.items.length} emptyText="没有符合条件的用户" emptyHint="暂无匹配用户。">
+      <Table className="users-table"><thead><tr><th>用户</th><th>手机号</th><th>在线状态</th><th>最近上线</th><th>最近离线</th><th>训练次数</th><th>累计时长</th><th>账号状态</th><th>注册时间</th><th><span className="sr-only">操作</span></th></tr></thead>
+        <tbody>{data?.items.map((item) => <tr key={item.id}><td><div className="user-cell">{item.avatarUrl ? <img src={mediaUrl(item.avatarUrl)} alt="" /> : <span className="mini-avatar">{(item.nickname || '用').slice(0, 1)}</span>}<span><strong>{item.nickname || `用户 ${item.id}`}</strong><small>ID {item.id}</small></span></div></td><td>{item.phone || '未绑定'}</td><td><span className={`presence-status ${item.presence?.online ? 'online' : 'offline'}`}>{item.presence?.online ? '在线' : '离线'}</span></td><td className="presence-time">{formatPresenceDate(item.presence?.lastOnlineAt)}</td><td className="presence-time">{formatPresenceDate(item.presence?.lastOfflineAt)}</td><td>{item.workoutCount}</td><td>{item.totalMinutes} 分钟</td><td><Badge status={item.status} /></td><td>{formatDate(item.createdAt)}</td><td><div className="row-actions"><button className="icon-button" onClick={() => setHistoryUser(item)} aria-label={`查看用户 ${item.id} 上下线记录`} title="上下线记录"><FileClock size={17} /></button><button className="icon-button" onClick={() => setEditing(item)} aria-label={`编辑用户 ${item.id}`} title="编辑绑定与状态"><Pencil size={17} /></button></div></td></tr>)}</tbody>
       </Table>
     </TableSurface>
     {data && <Pagination data={data} onPage={setPage} />}
+    {editing && <UserEditor value={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload() }} />}
+    {historyUser && <PresenceHistory key={historyUser.id} user={historyUser} onClose={() => setHistoryUser(null)} />}
   </Page>
+}
+
+const presenceFormatter = new Intl.DateTimeFormat('zh-CN', {
+  timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+})
+
+function formatPresenceDate(value?: string) {
+  return value ? presenceFormatter.format(new Date(value)) : '无'
+}
+
+function PresenceHistory({ user, onClose }: { user: UserRow; onClose: () => void }) {
+  const [page, setPage] = useState(1)
+  const { data, loading, error, reload } = useResource<PageResult<PresenceVisit>>(`/users/${user.id}/presence?page=${page}&pageSize=20`, 15000)
+  return <SidePanel title="上下线记录" subtitle={`${user.nickname || `用户 ${user.id}`} · 北京时间 · 按连接记录`} onClose={onClose} wide>
+    {error && <ErrorBanner message={error} onRetry={reload} />}
+    <TableSurface loading={loading} empty={!data?.items.length} emptyText="暂无上下线记录" emptyHint="尚未记录到该用户的连接。">
+      <Table><thead><tr><th>上线时间</th><th>离线时间</th><th>在线时长</th><th>状态</th></tr></thead><tbody>{data?.items.map((visit) => {
+        const seconds = Math.max(0, Math.floor(((visit.offlineAt ? new Date(visit.offlineAt).getTime() : Date.now()) - new Date(visit.onlineAt).getTime()) / 1000))
+        return <tr key={visit.id}><td className="presence-time">{formatPresenceDate(visit.onlineAt)}</td><td className="presence-time">{visit.offlineAt ? formatPresenceDate(visit.offlineAt) : '在线中'}</td><td>{Math.floor(seconds / 3600)}时 {Math.floor(seconds / 60) % 60}分 {seconds % 60}秒</td><td>{visit.endReason === 'TIMEOUT' ? '超时离线' : visit.offlineAt ? '已离线' : '在线'}</td></tr>
+      })}</tbody></Table>
+    </TableSurface>
+    {data && <Pagination data={data} onPage={setPage} />}
+  </SidePanel>
 }
 
 function CoursesPage() {
@@ -301,8 +333,8 @@ function ExercisesPage() {
     <Toolbar onSubmit={() => { setSearch(query); setPage(1) }} query={query} setQuery={setQuery} placeholder="搜索动作" onRefresh={reload} loading={loading}><StatusSelect value={status} onChange={setStatus} /></Toolbar>
     {error && <ErrorBanner message={error} onRetry={reload} />}
     <TableSurface loading={loading} empty={!data?.items.length} emptyText="还没有动作" emptyHint="创建动作后，可以把它编排到课程中。">
-      <Table><thead><tr><th>动作</th><th>部位</th><th>难度</th><th>建议组数</th><th>目标</th><th>状态</th><th>更新时间</th><th><span className="sr-only">操作</span></th></tr></thead>
-        <tbody>{data?.items.map((item) => <tr key={item.id}><td><div className="content-cell"><MediaThumbnail src={item.coverImage} label={item.name} icon="exercise" /><span><strong>{item.name}</strong><small>{item.equipment}</small></span></div></td><td>{item.bodyPart}</td><td>{item.level}</td><td>{item.suggestedSets}</td><td>{item.target}</td><td><Badge status={item.status} /></td><td>{formatDate(item.updatedAt)}</td><td><RowActions onEdit={() => setEditing(item)} onDelete={() => setDeleting(item)} /></td></tr>)}</tbody>
+      <Table><thead><tr><th>动作</th><th>部位</th><th>难度</th><th>弹簧组数</th><th>状态</th><th>更新时间</th><th><span className="sr-only">操作</span></th></tr></thead>
+        <tbody>{data?.items.map((item) => <tr key={item.id}><td><div className="content-cell"><MediaThumbnail src={item.coverImage} label={item.name} icon="exercise" /><span><strong>{item.name}</strong><small>{item.equipment}</small></span></div></td><td>{item.bodyPart}</td><td>{item.level}</td><td>{item.springSets?.length ? item.springSets.map((count) => `${count} 组`).join('、') : '未配置'}</td><td><Badge status={item.status} /></td><td>{formatDate(item.updatedAt)}</td><td><RowActions onEdit={() => setEditing(item)} onDelete={() => setDeleting(item)} /></td></tr>)}</tbody>
       </Table>
     </TableSurface>
     {data && <Pagination data={data} onPage={setPage} />}
@@ -431,7 +463,7 @@ function DevicesPage() {
         <label className="select-field"><span className="sr-only">设备型号</span><select value={deviceModel} onChange={(event) => { setDeviceModel(event.target.value); setPage(1) }}><option value="ALL">全部型号</option>{models.data?.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select></label>
         <label className="select-field"><span className="sr-only">设备品牌</span><select value={brand} onChange={(event) => { setBrand(event.target.value); setPage(1) }}><option value="ALL">全部品牌</option><option value="Manhart">Manhart</option><option value="ARVELLO">ARVELLO</option><option value="UNBRANDED">第三方</option></select></label>
         <label className="select-field"><span className="sr-only">设备来源</span><select value={deviceSource} onChange={(event) => { setDeviceSource(event.target.value); setPage(1) }}><option value="ALL">全部来源</option><option value="OWN">自有设备</option><option value="THIRD_PARTY">第三方设备</option></select></label>
-        <label className="select-field"><span className="sr-only">绑定状态</span><select value={bindingStatus} onChange={(event) => { setBindingStatus(event.target.value); setPage(1) }}><option value="ALL">全部状态</option><option value="BOUND">已绑定</option><option value="UNBOUND">未绑定</option></select></label>
+        <label className="select-field"><span className="sr-only">绑定状态</span><select value={bindingStatus} onChange={(event) => { setBindingStatus(event.target.value); setPage(1) }}><option value="ALL">全部状态</option><option value="BOUND">已绑定</option><option value="UNBOUND">未绑定</option><option value="RELEASED">设备已解绑</option></select></label>
         <label className="filter-text-field"><span className="sr-only">绑定用户</span><input value={boundUser} onChange={(event) => setBoundUser(event.target.value)} placeholder="绑定用户、手机号或 ID" /></label>
         <label className="date-filter"><span>创建时间从</span><input type="date" value={createdFrom} max={createdTo || undefined} onChange={(event) => { setCreatedFrom(event.target.value); setPage(1) }} /></label>
         <label className="date-filter"><span>至</span><input type="date" value={createdTo} min={createdFrom || undefined} onChange={(event) => { setCreatedTo(event.target.value); setPage(1) }} /></label>
@@ -443,8 +475,8 @@ function DevicesPage() {
     {selectedIds.size > 0 && <div className="bulk-toolbar" aria-label="批量操作"><span><strong>已选择 {selectedIds.size} 台</strong><small>翻页后仍会保留选择，单次最多 100 台</small></span><button className="button ghost small" onClick={() => { setSelectedIds(new Set()); setExportError('') }}>取消选择</button><button className="button primary" onClick={exportDevices} disabled={exporting}>{exporting ? <><LoaderCircle className="spin" size={17} />正在生成 Excel</> : <><FileSpreadsheet size={17} />导出 Excel</>}</button></div>}
     {exportError && <div className="form-error export-error" role="alert">{exportError}</div>}
     <TableSurface loading={loading} empty={!data?.items.length} emptyText="还没有设备" emptyHint="选择设备型号和品牌后，系统会生成唯一 SN 和可下载的设备标签。">
-      <Table><thead><tr><th className="selection-cell"><input type="checkbox" checked={allCurrentSelected} disabled={!selectableItems.length} onChange={toggleCurrentPage} aria-label="选择当前页自有设备" title="选择当前页自有设备" /></th><th>序列号</th><th>设备</th><th>品牌</th><th>来源</th><th>绑定用户</th><th>状态</th><th>创建时间</th><th><span className="sr-only">操作</span></th></tr></thead>
-        <tbody>{data?.items.map((item) => <tr key={item.id} className={selectedIds.has(item.id) ? 'selected-row' : ''}><td className="selection-cell"><input type="checkbox" checked={selectedIds.has(item.id)} disabled={item.deviceSource === 'THIRD_PARTY' || (!selectedIds.has(item.id) && selectedIds.size >= 100)} onChange={(event) => toggleDevice(item.id, event.target.checked)} aria-label={item.deviceSource === 'THIRD_PARTY' ? `${item.serialNumber} 为第三方设备，不能导出标签` : `选择设备 ${item.serialNumber}`} title={item.deviceSource === 'THIRD_PARTY' ? '第三方设备不生成品牌设备标签' : '选择导出'} /></td><td><code>{item.serialNumber}</code></td><td><div className="cell-stack"><span className="cell-title">{item.deviceName || item.deviceModel}</span>{item.deviceName && item.deviceName !== item.deviceModel && <small>{item.deviceModel}</small>}</div></td><td>{item.brand || '第三方'}</td><td>{item.deviceSource === 'THIRD_PARTY' ? '第三方设备' : '自有设备'}</td><td>{item.boundUserId ? <div className="cell-stack"><span>{item.boundUserName || `用户 #${item.boundUserId}`}</span>{item.boundUserPhone && <small>{item.boundUserPhone}</small>}</div> : '未绑定'}</td><td><Badge status={item.bound ? 'BOUND' : 'UNBOUND'} /></td><td>{formatDate(item.createdAt)}</td><td><div className="row-actions">{item.deviceSource !== 'THIRD_PARTY' && <button className="icon-button" onClick={() => setLabelDevice(item)} aria-label="查看设备标签" title="查看设备标签"><QrCode size={17} /></button>}<button className="icon-button danger" onClick={() => setDeleting(item)} aria-label="删除" title="删除"><Trash2 size={17} /></button></div></td></tr>)}</tbody>
+      <Table className="device-binding-table"><thead><tr><th className="selection-cell"><input type="checkbox" checked={allCurrentSelected} disabled={!selectableItems.length} onChange={toggleCurrentPage} aria-label="选择当前页自有设备" title="选择当前页自有设备" /></th><th>序列号</th><th>设备</th><th>品牌</th><th>来源</th><th>绑定用户</th><th>状态</th><th>最近绑定时间</th><th>最近解绑时间</th><th>创建时间</th><th><span className="sr-only">操作</span></th></tr></thead>
+        <tbody>{data?.items.map((item) => <tr key={item.id} className={selectedIds.has(item.id) ? 'selected-row' : ''}><td className="selection-cell"><input type="checkbox" checked={selectedIds.has(item.id)} disabled={item.deviceSource === 'THIRD_PARTY' || (!selectedIds.has(item.id) && selectedIds.size >= 100)} onChange={(event) => toggleDevice(item.id, event.target.checked)} aria-label={item.deviceSource === 'THIRD_PARTY' ? `${item.serialNumber} 为第三方设备，不能导出标签` : `选择设备 ${item.serialNumber}`} title={item.deviceSource === 'THIRD_PARTY' ? '第三方设备不生成品牌设备标签' : '选择导出'} /></td><td><code>{item.serialNumber}</code></td><td><div className="cell-stack"><span className="cell-title">{item.deviceName || item.deviceModel}</span>{item.deviceName && item.deviceName !== item.deviceModel && <small>{item.deviceModel}</small>}</div></td><td>{item.brand || '第三方'}</td><td>{item.deviceSource === 'THIRD_PARTY' ? '第三方设备' : '自有设备'}</td><td>{item.boundUserId ? <div className="cell-stack"><span>{item.boundUserName || `用户 #${item.boundUserId}`}</span>{item.boundUserPhone && <small>{item.boundUserPhone}</small>}</div> : '未绑定用户'}</td><td><Badge status={item.bound ? 'BOUND' : item.unboundAt ? 'RELEASED' : 'UNBOUND'} /></td><td className="presence-time">{formatPresenceDate(item.boundAt)}</td><td className="presence-time">{formatPresenceDate(item.unboundAt)}</td><td>{formatDate(item.createdAt)}</td><td><div className="row-actions">{item.deviceSource !== 'THIRD_PARTY' && <button className="icon-button" onClick={() => setLabelDevice(item)} aria-label="查看设备标签" title="查看设备标签"><QrCode size={17} /></button>}<button className="icon-button danger" onClick={() => setDeleting(item)} aria-label="删除" title="删除"><Trash2 size={17} /></button></div></td></tr>)}</tbody>
       </Table>
     </TableSurface>
     {data && <Pagination data={data} onPage={setPage} />}
@@ -468,8 +500,8 @@ function DeviceModelsPage() {
     action={<button className="button primary" onClick={() => setEditing('new')}><Plus size={17} />新增型号</button>}>
     {error && <ErrorBanner message={error} onRetry={reload} />}
     <TableSurface loading={loading} empty={!data?.length} emptyText="还没有设备型号" emptyHint="先创建型号，再新增设备。">
-      <Table><thead><tr><th>型号名称</th><th>SN 前缀</th><th>设备数量</th><th>更新时间</th><th><span className="sr-only">操作</span></th></tr></thead>
-        <tbody>{data?.map((item) => <tr key={item.id}><td className="cell-title">{item.name}</td><td><code>{item.snPrefix}</code></td><td>{item.deviceCount}</td><td>{formatDate(item.updatedAt)}</td><td><RowActions onEdit={() => setEditing(item)} onDelete={() => setDeleting(item)} /></td></tr>)}</tbody>
+      <Table><thead><tr><th>品牌名称</th><th>型号名称</th><th>SN 前缀</th><th>设备数量</th><th>更新时间</th><th><span className="sr-only">操作</span></th></tr></thead>
+        <tbody>{data?.map((item) => <tr key={item.id}><td>{item.brand}</td><td className="cell-title">{item.name}</td><td><code>{item.snPrefix}</code></td><td>{item.deviceCount}</td><td>{formatDate(item.updatedAt)}</td><td><RowActions onEdit={() => setEditing(item)} onDelete={() => setDeleting(item)} /></td></tr>)}</tbody>
       </Table>
     </TableSurface>
     {editing && <DeviceModelEditor value={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload() }} />}
@@ -536,17 +568,80 @@ function AuditsPage() {
   </Page>
 }
 
+function UserEditor({ value, onClose, onSaved }: { value: UserRow; onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState({ phone: value.phone || '', status: value.status || 'ACTIVE' })
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const displayName = value.nickname || `用户 ${value.id}`
+  const originalPhone = (value.phone || '').trim().replace(/[\s-]/g, '')
+  const normalizedPhone = form.phone.trim().replace(/[\s-]/g, '')
+  const phoneValid = !normalizedPhone || /^\d{6,20}$/.test(normalizedPhone)
+  const phoneChanged = normalizedPhone !== originalPhone
+  const statusChanged = form.status !== value.status
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!phoneValid) {
+      setError('手机号只能包含 6 至 20 位数字')
+      return
+    }
+    if (phoneChanged) {
+      const from = originalPhone || '未绑定'
+      const to = normalizedPhone || '未绑定'
+      if (!window.confirm(`确认修改 ${displayName} 的手机号绑定？\n\n当前：${from}\n修改为：${to}`)) return
+    }
+    if (!phoneChanged && statusChanged && form.status === 'INACTIVE' && !window.confirm(`确认将 ${displayName} 的账号设为不可用？保存后该用户不能登录小程序。`)) return
+    setBusy(true); setError('')
+    try {
+      await api<UserRow>(`/users/${value.id}`, json('PUT', { phone: normalizedPhone || null, status: form.status }))
+      onSaved()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '用户保存失败')
+    } finally { setBusy(false) }
+  }
+  const unbindPhone = async () => {
+    if (!originalPhone || busy) return
+    if (!window.confirm(`确认解除 ${displayName} 的手机号绑定？\n\n当前手机号：${originalPhone}`)) return
+    setBusy(true); setError('')
+    try {
+      await api<UserRow>(`/users/${value.id}`, json('PUT', { phone: null, status: value.status }))
+      onSaved()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '解绑失败')
+    } finally { setBusy(false) }
+  }
+
+  return <SidePanel title="编辑用户绑定" subtitle={`${displayName} · ID ${value.id}`} onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" type="submit" form="user-form" disabled={busy || !phoneValid}>{busy ? <><LoaderCircle className="spin" size={17} />正在保存</> : '保存用户'}</button></div>}>
+    <form id="user-form" className="editor-form" onSubmit={submit}>
+      {error && <div className="form-error" role="alert">{error}</div>}
+      <dl className="detail-list user-edit-summary"><div><dt>用户</dt><dd>{displayName}</dd></div><div><dt>训练次数</dt><dd>{value.workoutCount} 次</dd></div><div><dt>累计时长</dt><dd>{value.totalMinutes} 分钟</dd></div><div><dt>注册时间</dt><dd>{formatDate(value.createdAt)}</dd></div></dl>
+      <FormSection title="账号绑定" description="同一手机号只能绑定一个账号；解除绑定请使用按钮确认。">
+        <div className="phone-bind-row">
+          <Field label="手机号"><input inputMode="numeric" maxLength={20} value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value.replace(/[^\d\s-]/g, '') }))} placeholder="例如 13800138000" aria-invalid={!phoneValid} /></Field>
+          <button type="button" className="button secondary phone-unbind-button" onClick={unbindPhone} disabled={busy || !originalPhone}>解除绑定</button>
+        </div>
+        {!phoneValid && <p className="field-error">手机号只能包含 6 至 20 位数字。</p>}
+        {phoneChanged && phoneValid && <p className="field-hint">保存前会要求确认手机号变更。</p>}
+      </FormSection>
+      <FormSection title="账号状态" description="不可用账号会被踢出登录态，且不能在小程序端重新登录。">
+        <Field label="状态"><select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}><option value="ACTIVE">正常</option><option value="INACTIVE">不可用</option></select></Field>
+        {form.status === 'INACTIVE' && <div className="account-status-note" role="status"><ShieldCheck size={18} /><span><strong>账号将显示为不可用</strong><small>保存后该用户的小程序登录状态会失效，后续登录会被拒绝。</small></span></div>}
+      </FormSection>
+    </form>
+  </SidePanel>
+}
+
 function CourseEditor({ value, onClose, onSaved }: { value: CourseRow | null; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState({
     title: value?.title || '', type: value?.type || '全身', durationMinutes: value?.durationMinutes || 20,
     level: value?.level || '初级', equipment: value?.equipment || '无器械', summary: value?.summary || '',
     coverImage: value?.coverImage || '', videoUrl: value?.videoUrl || '', videoCoverImage: value?.videoCoverImage || '',
     videoDurationSeconds: value?.videoDurationSeconds || 0, status: value?.status || 'DRAFT' as Status,
-    sortOrder: value?.sortOrder || 0, exerciseIds: value?.exerciseIds || [] as number[],
+    sortOrder: value?.sortOrder || 0,
+    introduction: value?.introduction || '', audience: value?.audience || '',
+    exercises: value?.exercises || (value?.exerciseIds || []).map(exerciseId => ({ exerciseId, sets: [{ side: '双侧', durationSeconds: 60, repetitions: 0, springCount: 0 }] })),
   })
   const [errors, setErrors] = useState('')
   const [busy, setBusy] = useState(false)
-  const exercises = useResource<PageResult<ExerciseRow>>('/exercises?page=1&pageSize=100').data?.items || []
   const update = (key: string, next: unknown) => setForm((current) => ({ ...current, [key]: next }))
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setBusy(true); setErrors('')
@@ -559,7 +654,8 @@ function CourseEditor({ value, onClose, onSaved }: { value: CourseRow | null; on
       {errors && <div className="form-error" role="alert">{errors}</div>}
       <FormSection title="基本信息"><div className="form-grid"><Field label="课程名称" required><input value={form.title} maxLength={80} onChange={(event) => update('title', event.target.value)} required /></Field><Field label="课程类型" required><input value={form.type} maxLength={30} onChange={(event) => update('type', event.target.value)} required /></Field><Field label="难度" required><input value={form.level} maxLength={30} onChange={(event) => update('level', event.target.value)} required /></Field><Field label="所需器械" required><input value={form.equipment} maxLength={80} onChange={(event) => update('equipment', event.target.value)} required /></Field><Field label="课程时长（分钟）" required><input type="number" min="1" max="600" value={form.durationMinutes} onChange={(event) => update('durationMinutes', Number(event.target.value))} required /></Field><Field label="排序"><input type="number" value={form.sortOrder} onChange={(event) => update('sortOrder', Number(event.target.value))} /></Field></div><Field label="课程简介" required hint={`${form.summary.length}/300`}><textarea rows={4} value={form.summary} maxLength={300} onChange={(event) => update('summary', event.target.value)} required /></Field></FormSection>
       <FormSection title="课程媒体"><div className="media-grid"><MediaUploader label="课程封面" kind="image" value={form.coverImage} onChange={(next) => update('coverImage', next)} /><MediaUploader label="训练视频" kind="video" value={form.videoUrl} poster={form.videoCoverImage || form.coverImage} durationSeconds={form.videoDurationSeconds} onDurationChange={(next) => update('videoDurationSeconds', next)} onChange={(next) => update('videoUrl', next)} /></div></FormSection>
-      <FormSection title="动作编排" description="按勾选顺序保存到课程中。"><div className="check-list">{exercises.length ? exercises.map((item) => <label className="check-row" key={item.id}><input type="checkbox" checked={form.exerciseIds.includes(item.id)} onChange={(event) => update('exerciseIds', event.target.checked ? [...form.exerciseIds, item.id] : form.exerciseIds.filter((id) => id !== item.id))} /><span><strong>{item.name}</strong><small>{item.bodyPart} · {item.target}</small></span></label>) : <p className="muted">请先创建动作，再进行课程编排。</p>}</div></FormSection>
+      <FormSection title="课程介绍"><Field label="课程介绍"><textarea rows={5} maxLength={5000} value={form.introduction} onChange={event => update('introduction', event.target.value)} /></Field><Field label="适合人群"><textarea rows={3} maxLength={2000} value={form.audience} onChange={event => update('audience', event.target.value)} /></Field></FormSection>
+      <FormSection title="动作编排"><CourseTrainingEditor value={form.exercises} onChange={items => update('exercises', items)} /></FormSection>
       <FormSection title="发布设置"><div className="form-grid"><Field label="状态"><select value={form.status} onChange={(event) => update('status', event.target.value)}><option value="DRAFT">草稿</option><option value="PUBLISHED">发布</option><option value="ARCHIVED">下架</option></select></Field></div></FormSection>
     </form>
   </SidePanel>
@@ -567,20 +663,25 @@ function CourseEditor({ value, onClose, onSaved }: { value: CourseRow | null; on
 
 function ExerciseEditor({ value, onClose, onSaved }: { value: ExerciseRow | null; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState({
+    focusImageUrl: value?.focusImageUrl || '', focusParts: value?.focusParts || '', springSets: value?.springSets || [] as number[],
+    keyPoints: value?.keyPoints || '', commonMistakes: value?.commonMistakes || '', instructionAudioUrl: value?.instructionAudioUrl || '',
     name: value?.name || '', bodyPart: value?.bodyPart || '核心', level: value?.level || '基础',
-    equipment: value?.equipment || '无器械', suggestedSets: value?.suggestedSets || 2,
+    equipment: '核心床（Reformer）', suggestedSets: value?.suggestedSets || 2,
     target: value?.target || '', cue: value?.cue || '', safetyTip: value?.safetyTip || '',
     coverImage: value?.coverImage || '', videoUrl: value?.videoUrl || '', videoCoverImage: value?.videoCoverImage || '',
     videoDurationSeconds: value?.videoDurationSeconds || 0, backgroundMusicUrl: value?.backgroundMusicUrl || '',
     status: value?.status || 'DRAFT' as Status, sortOrder: value?.sortOrder || 0,
   })
+  const [springInput, setSpringInput] = useState((value?.springSets || []).join(', '))
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
   const update = (key: string, next: unknown) => setForm((current) => ({ ...current, [key]: next }))
-  const submit = async (event: FormEvent) => { event.preventDefault(); setBusy(true); setError(''); try { await api(value ? `/exercises/${value.id}` : '/exercises', json(value ? 'PUT' : 'POST', form)); onSaved() } catch (reason) { setError(reason instanceof Error ? reason.message : '动作保存失败') } finally { setBusy(false) } }
-  return <SidePanel title={value ? '编辑动作' : '新增动作'} subtitle="动作可被多个课程重复使用" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>继续编辑后再说</button><button className="button primary" type="submit" form="exercise-form" disabled={busy}>{busy ? '正在保存' : '保存动作'}</button></div>}>
-    <form id="exercise-form" className="editor-form" onSubmit={submit}>{error && <div className="form-error">{error}</div>}
-      <FormSection title="基本信息"><div className="form-grid"><Field label="动作名称" required><input value={form.name} onChange={(event) => update('name', event.target.value)} required /></Field><Field label="训练部位" required><input value={form.bodyPart} onChange={(event) => update('bodyPart', event.target.value)} required /></Field><Field label="难度" required><input value={form.level} onChange={(event) => update('level', event.target.value)} required /></Field><Field label="所需器械" required><input value={form.equipment} onChange={(event) => update('equipment', event.target.value)} required /></Field><Field label="建议组数"><input type="number" min="1" max="20" value={form.suggestedSets} onChange={(event) => update('suggestedSets', Number(event.target.value))} /></Field><Field label="训练目标" required><input value={form.target} onChange={(event) => update('target', event.target.value)} placeholder="例如 30 秒" required /></Field></div><Field label="动作要领" required><textarea rows={3} value={form.cue} onChange={(event) => update('cue', event.target.value)} required /></Field><Field label="安全提示" required><textarea rows={3} value={form.safetyTip} onChange={(event) => update('safetyTip', event.target.value)} required /></Field></FormSection>
-      <FormSection title="动作媒体" description="示范视频原声与背景音乐将作为两条独立音轨提供给小程序用户。"><div className="media-grid"><MediaUploader label="动作封面" kind="image" value={form.coverImage} onChange={(next) => update('coverImage', next)} /><MediaUploader label="示范视频" kind="video" value={form.videoUrl} poster={form.videoCoverImage || form.coverImage} durationSeconds={form.videoDurationSeconds} onDurationChange={(next) => update('videoDurationSeconds', next)} onChange={(next) => update('videoUrl', next)} /><MediaUploader label="背景音乐" kind="audio" value={form.backgroundMusicUrl} onChange={(next) => update('backgroundMusicUrl', next)} /></div></FormSection>
+  const submit = async (event: FormEvent) => { event.preventDefault(); const tokens = springInput.trim() ? springInput.trim().split(/[,，、\s]+/) : []; const springSets = tokens.map(Number); if (springSets.some((count) => !Number.isInteger(count) || count < 1 || count > 20) || springSets.length > 20) { setError('弹簧组数请输入 1 至 20 的整数，多个组数用逗号分隔'); return } setBusy(true); setError(''); try { await api(value ? `/exercises/${value.id}` : '/exercises', json(value ? 'PUT' : 'POST', { ...form, focusParts: '', springSets: [...new Set(springSets)] })); onSaved() } catch (reason) { setError(reason instanceof Error ? reason.message : '动作保存失败') } finally { setBusy(false) } }
+  return <SidePanel title={value ? '编辑动作' : '新增动作'} subtitle="动作可被多个课程重复使用" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" type="submit" form="exercise-form" disabled={busy}>{busy ? '正在保存' : '保存动作'}</button></div>}>
+    <form id="exercise-form" className="editor-form exercise-editor" onSubmit={submit}>{error && <div className="form-error">{error}</div>}
+      <FormSection title="基本信息"><div className="form-grid"><Field label="动作名称" required><input value={form.name} onChange={(event) => update('name', event.target.value)} required /></Field><Field label="训练部位" required><select value={form.bodyPart} onChange={(event) => update('bodyPart', event.target.value)} required>{Array.from(new Set(['核心', '肩背', '下肢', '全身', form.bodyPart].filter(Boolean))).map((item) => <option key={item} value={item}>{item}</option>)}</select></Field><Field label="难度" required><select value={form.level} onChange={(event) => update('level', event.target.value)} required>{Array.from(new Set(['基础', '进阶', '拉伸', form.level].filter(Boolean))).map((item) => <option key={item} value={item}>{item}</option>)}</select></Field><Field label="器械"><input value={form.equipment} readOnly /></Field></div></FormSection>
+      <FormSection title="训练配置"><div className="exercise-training-grid"><Field label="建议弹簧组数" hint="多个组数用逗号分隔"><input value={springInput} onChange={(event) => setSpringInput(event.target.value)} placeholder="例如 2, 3" maxLength={80} /></Field><MediaUploader hint="完整展示图片，不裁切" label="重点部位图片" kind="image" value={form.focusImageUrl} onChange={(next) => update('focusImageUrl', next)} /></div></FormSection>
+      <FormSection title="动作说明"><div className="form-grid"><Field label="动作要领" required hint="每行一条"><textarea rows={3} value={form.cue} onChange={(event) => update('cue', event.target.value)} required /></Field><Field label="安全提示" required><textarea rows={3} value={form.safetyTip} onChange={(event) => update('safetyTip', event.target.value)} required /></Field><Field label="动作要点" hint="每行一条"><textarea rows={4} maxLength={2000} value={form.keyPoints} onChange={(event) => update('keyPoints', event.target.value)} /></Field><Field label="常见错误" hint="每行一条"><textarea rows={4} maxLength={2000} value={form.commonMistakes} onChange={(event) => update('commonMistakes', event.target.value)} /></Field></div></FormSection>
+      <FormSection title="动作媒体" ><div className="media-grid"><MediaUploader label="动作封面" kind="image" value={form.coverImage} onChange={(next) => update('coverImage', next)} /><MediaUploader label="示范视频" kind="video" value={form.videoUrl} poster={form.videoCoverImage || form.coverImage} durationSeconds={form.videoDurationSeconds} onDurationChange={(next) => update('videoDurationSeconds', next)} onChange={(next) => update('videoUrl', next)} /><MediaUploader hint="点击后播放语音指令" label="动作指令" kind="audio" value={form.instructionAudioUrl} onChange={(next) => update('instructionAudioUrl', next)} /><MediaUploader label="背景音乐" kind="audio" value={form.backgroundMusicUrl} onChange={(next) => update('backgroundMusicUrl', next)} /></div></FormSection>
       <FormSection title="发布设置"><div className="form-grid"><Field label="状态"><select value={form.status} onChange={(event) => update('status', event.target.value)}><option value="DRAFT">草稿</option><option value="PUBLISHED">发布</option><option value="ARCHIVED">下架</option></select></Field><Field label="排序"><input type="number" value={form.sortOrder} onChange={(event) => update('sortOrder', Number(event.target.value))} /></Field></div></FormSection>
     </form>
   </SidePanel>
@@ -621,7 +722,7 @@ function CampaignEditor({ value, onClose, onSaved }: { value: CampaignRow | null
 }
 
 function DeviceModelEditor({ value, onClose, onSaved }: { value: DeviceModelRow | null; onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState({ name: value?.name || '', snPrefix: value?.snPrefix || '' })
+  const [form, setForm] = useState({ name: value?.name || '', brand: value?.brand || 'ARVELLO', snPrefix: value?.snPrefix || 'AV' })
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setBusy(true); setError('')
@@ -632,14 +733,15 @@ function DeviceModelEditor({ value, onClose, onSaved }: { value: DeviceModelRow 
   }
   return <SidePanel title={value ? '编辑设备型号' : '新增设备型号'} subtitle="型号用于新建设备和生成序列号" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" form="device-model-form" disabled={busy}>{busy ? '正在保存' : '保存型号'}</button></div>}>
     <form id="device-model-form" className="editor-form" onSubmit={submit}>{error && <div className="form-error" role="alert">{error}</div>}
-      <FormSection title="型号信息"><Field label="型号名称" required hint="最多 100 个字符"><input value={form.name} maxLength={100} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="例如 Arvello Rehab Pro" required /></Field><Field label="SN 前缀" required hint="2 至 12 位字母或数字，同型号保持一致"><input value={form.snPrefix} minLength={2} maxLength={12} pattern="[A-Za-z0-9]+" onChange={(event) => setForm((current) => ({ ...current, snPrefix: event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }))} placeholder="例如 REHAB" required /></Field></FormSection>
+      <FormSection title="型号信息"><Field label="品牌名称" required><select value={form.brand} disabled={Boolean(value?.deviceCount)} onChange={(event) => setForm((current) => ({ ...current, brand: event.target.value, snPrefix: (event.target.value === 'Manhart' ? 'MN' : 'AV') + current.snPrefix.replace(/^(AV|MN)/, '') }))} required><option value="ARVELLO">ARVELLO</option><option value="Manhart">MANHART</option></select></Field><Field label="型号名称" required hint="最多 100 个字符"><input value={form.name} maxLength={100} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="例如 Arvello Rehab Pro" required /></Field><Field label="SN 前缀" required hint={form.brand === 'Manhart' ? '以 MN 开头，例如 MNW01' : '以 AV 开头，例如 AVW01'}><input value={form.snPrefix} minLength={2} maxLength={12} pattern={form.brand === 'Manhart' ? 'MN[A-Z0-9]{0,10}' : 'AV[A-Z0-9]{0,10}'} onChange={(event) => setForm((current) => ({ ...current, snPrefix: event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }))} placeholder={form.brand === 'Manhart' ? '例如 MNW01' : '例如 AVW01'} required /></Field></FormSection>
     </form>
   </SidePanel>
 }
 
 function DeviceCreator({ models, onClose, onCreated }: { models: DeviceModelRow[]; onClose: () => void; onCreated: (created: DeviceRow) => void }) {
-  const [deviceModel, setDeviceModel] = useState(models[0]?.name || '')
+  const [deviceModel, setDeviceModel] = useState('')
   const [brand, setBrand] = useState('')
+  const availableModels = models.filter((item) => item.brand === brand)
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setBusy(true); setError('')
@@ -648,16 +750,17 @@ function DeviceCreator({ models, onClose, onCreated }: { models: DeviceModelRow[
       onCreated(created)
     } catch (reason) { setError(reason instanceof Error ? reason.message : '设备保存失败') } finally { setBusy(false) }
   }
-  return <SidePanel title="新增设备" subtitle="选择品牌和型号后自动生成下一条 SN" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" form="device-form" disabled={busy || models.length === 0 || !brand}>{busy ? '正在创建' : <><Plus size={17} />创建设备</>}</button></div>}>
+  return <SidePanel title="新增设备" subtitle="选择品牌和型号后自动生成下一条 SN" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" form="device-form" disabled={busy || !deviceModel || !brand}>{busy ? '正在创建' : <><Plus size={17} />创建设备</>}</button></div>}>
     <form id="device-form" className="editor-form" onSubmit={submit}>{error && <div className="form-error">{error}</div>}{models.length === 0 && <div className="form-error" role="alert">请先在“设备型号”中创建至少一个型号。</div>}
-      <FormSection title="设备信息"><Field label="设备品牌" required hint="品牌创建后会显示在设备列表中"><select value={brand} onChange={(event) => setBrand(event.target.value)} required><option value="" disabled>请选择品牌</option><option value="Manhart">Manhart</option><option value="ARVELLO">ARVELLO</option></select></Field><Field label="设备型号" required><select value={deviceModel} onChange={(event) => setDeviceModel(event.target.value)} required disabled={models.length === 0}>{models.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select></Field></FormSection>
+      <FormSection title="设备信息"><Field label="设备品牌" required hint="品牌创建后会显示在设备列表中"><select value={brand} onChange={(event) => { setBrand(event.target.value); setDeviceModel('') }} required><option value="" disabled>请选择品牌</option><option value="Manhart">Manhart</option><option value="ARVELLO">ARVELLO</option></select></Field><Field label="设备型号" required><select value={deviceModel} onChange={(event) => setDeviceModel(event.target.value)} required disabled={!brand || availableModels.length === 0}><option value="" disabled>{!brand ? '请先选择品牌' : availableModels.length ? '请选择型号' : '该品牌暂无型号，请先新增型号'}</option>{availableModels.map((item) => <option key={item.id} value={item.name}>{item.name} · {item.snPrefix}</option>)}</select></Field></FormSection>
     </form>
   </SidePanel>
 }
 
 function DeviceBatchCreator({ models, onClose, onCreated }: { models: DeviceModelRow[]; onClose: () => void; onCreated: (created: DeviceBatchCreateResult) => void }) {
-  const [deviceModel, setDeviceModel] = useState(models[0]?.name || '')
+  const [deviceModel, setDeviceModel] = useState('')
   const [brand, setBrand] = useState('')
+  const availableModels = models.filter((item) => item.brand === brand)
   const [quantity, setQuantity] = useState(10)
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
   const submit = async (event: FormEvent) => {
@@ -668,14 +771,14 @@ function DeviceBatchCreator({ models, onClose, onCreated }: { models: DeviceMode
     } catch (reason) { setError(reason instanceof Error ? reason.message : '设备批量新增失败') } finally { setBusy(false) }
   }
   const validQuantity = Number.isInteger(quantity) && quantity >= 1 && quantity <= 100
-  return <SidePanel title="批量新增设备" subtitle="一次生成同品牌、同型号的连续 SN" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" form="device-batch-form" disabled={busy || models.length === 0 || !brand || !validQuantity}>{busy ? <><LoaderCircle className="spin" size={17} />正在生成</> : <><ListPlus size={17} />生成 {validQuantity ? quantity : 0} 台设备</>}</button></div>}>
+  return <SidePanel title="批量新增设备" subtitle="一次生成同品牌、同型号的连续 SN" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" form="device-batch-form" disabled={busy || !deviceModel || !brand || !validQuantity}>{busy ? <><LoaderCircle className="spin" size={17} />正在生成</> : <><ListPlus size={17} />生成 {validQuantity ? quantity : 0} 台设备</>}</button></div>}>
     <form id="device-batch-form" className="editor-form" onSubmit={submit}>{error && <div className="form-error" role="alert">{error}</div>}{models.length === 0 && <div className="form-error" role="alert">请先在“设备型号”中创建至少一个型号。</div>}
-      <FormSection title="批量信息" description="单次最多新增 100 台"><Field label="设备品牌" required><select value={brand} onChange={(event) => setBrand(event.target.value)} required><option value="" disabled>请选择品牌</option><option value="Manhart">Manhart</option><option value="ARVELLO">ARVELLO</option></select></Field><Field label="设备型号" required><select value={deviceModel} onChange={(event) => setDeviceModel(event.target.value)} required disabled={models.length === 0}>{models.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select></Field><Field label="新增数量" required hint="1 至 100 台"><input type="number" min="1" max="100" step="1" value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} required /></Field><div className="batch-summary" aria-live="polite"><ListPlus size={19} /><span><strong>{validQuantity ? `将生成 ${quantity} 台设备` : '请输入 1 至 100 的整数'}</strong><small>SN 将按所选型号的当前流水号连续生成。</small></span></div></FormSection>
+      <FormSection title="批量信息" description="单次最多新增 100 台"><Field label="设备品牌" required><select value={brand} onChange={(event) => { setBrand(event.target.value); setDeviceModel('') }} required><option value="" disabled>请选择品牌</option><option value="Manhart">Manhart</option><option value="ARVELLO">ARVELLO</option></select></Field><Field label="设备型号" required><select value={deviceModel} onChange={(event) => setDeviceModel(event.target.value)} required disabled={!brand || availableModels.length === 0}><option value="" disabled>{!brand ? '请先选择品牌' : availableModels.length ? '请选择型号' : '该品牌暂无型号，请先新增型号'}</option>{availableModels.map((item) => <option key={item.id} value={item.name}>{item.name} · {item.snPrefix}</option>)}</select></Field><Field label="新增数量" required hint="1 至 100 台"><input type="number" min="1" max="100" step="1" value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} required /></Field><div className="batch-summary" aria-live="polite"><ListPlus size={19} /><span><strong>{validQuantity ? `将生成 ${quantity} 台设备` : '请输入 1 至 100 的整数'}</strong><small>SN 将按所选型号的当前流水号连续生成。</small></span></div></FormSection>
     </form>
   </SidePanel>
 }
 
-function MediaUploader({ label, kind, value, poster, durationSeconds, onChange, onDurationChange }: { label: string; kind: 'image' | 'video' | 'audio'; value: string; poster?: string; durationSeconds?: number; onChange: (value: string) => void; onDurationChange?: (value: number) => void }) {
+function MediaUploader({ label, kind, value, poster, durationSeconds, onChange, onDurationChange, hint }: { hint?: string; label: string; kind: 'image' | 'video' | 'audio'; value: string; poster?: string; durationSeconds?: number; onChange: (value: string) => void; onDurationChange?: (value: number) => void }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [downloading, setDownloading] = useState(false)
@@ -706,11 +809,11 @@ function MediaUploader({ label, kind, value, poster, durationSeconds, onChange, 
       ? previewFailed ? <div className="media-preview-fallback"><Video size={25} /><span>视频暂不可播放</span></div> : <><video className="video-preview-player" src={mediaUrl(value)} poster={poster ? mediaUrl(poster) : undefined} controls preload="metadata" playsInline onLoadedMetadata={(event) => { const seconds = Math.round(event.currentTarget.duration); if (Number.isFinite(seconds) && seconds > 0 && seconds !== durationSeconds) onDurationChange?.(seconds) }} onError={() => setPreviewFailed(true)} /><div className="video-preview-meta"><Video size={15} /><span title={filename}>{filename}</span><small>{durationSeconds ? formatMediaDuration(durationSeconds) : '读取时长中'}</small></div></>
       : previewFailed ? <div className="media-preview-fallback"><Music size={25} /><span>音频暂不可播放</span></div> : <div className="audio-preview"><div className="audio-preview-meta"><Music size={20} /><span><strong>背景音乐</strong><small title={filename}>{filename}</small></span></div><audio src={mediaUrl(value)} controls preload="metadata" onError={() => setPreviewFailed(true)} /></div>
   return <div className={`uploader ${kind === 'audio' ? 'audio-uploader' : ''}`}><div className="uploader-label"><strong>{label}</strong><small>{formats}</small></div>
-    {value ? <div className="media-preview">{preview}<div className="media-preview-actions"><button type="button" className="icon-button" onClick={download} disabled={downloading} aria-label={`下载${label}`} title={`下载${label}`}>{downloading ? <LoaderCircle className="spin" size={17} /> : <Download size={17} />}</button><div className="media-preview-edit-actions"><button type="button" className="button secondary small" onClick={() => inputRef.current?.click()}>更换{kindLabel}</button><button type="button" className="button ghost small danger-text" onClick={() => { onChange(''); if (kind === 'video') onDurationChange?.(0) }}>移除</button></div></div></div> : <button type="button" className="upload-drop" onClick={() => inputRef.current?.click()} disabled={busy}>{busy ? <LoaderCircle className="spin" size={24} /> : kind === 'audio' ? <Music size={24} /> : <Upload size={24} />}<strong>{busy ? '正在上传' : `选择${kindLabel}`}</strong><span>{kind === 'image' ? '建议使用 16:9 横图' : kind === 'audio' ? '将在动作播放时循环播放' : '文件大小由服务器配置限制'}</span></button>}
+    {value ? <div className="media-preview">{preview}<div className="media-preview-actions"><button type="button" className="icon-button" onClick={download} disabled={downloading} aria-label={`下载${label}`} title={`下载${label}`}>{downloading ? <LoaderCircle className="spin" size={17} /> : <Download size={17} />}</button><div className="media-preview-edit-actions"><button type="button" className="button secondary small" onClick={() => inputRef.current?.click()}>更换{kindLabel}</button><button type="button" className="button ghost small danger-text" onClick={() => { onChange(''); if (kind === 'video') onDurationChange?.(0) }}>移除</button></div></div></div> : <button type="button" className="upload-drop" onClick={() => inputRef.current?.click()} disabled={busy}>{busy ? <LoaderCircle className="spin" size={24} /> : kind === 'audio' ? <Music size={24} /> : <Upload size={24} />}<strong>{busy ? '正在上传' : `选择${kindLabel}`}</strong><span>{hint || (kind === 'image' ? '建议使用 16:9 横图' : kind === 'audio' ? '将在动作播放时循环播放' : '文件大小由服务器配置限制')}</span></button>}
     <input ref={inputRef} className="sr-only" type="file" accept={accept} onChange={(event) => { upload(event.target.files?.[0]); event.currentTarget.value = '' }} />{error && <p className="field-error">{error}</p>}</div>
 }
 
-function useResource<T>(path: string) {
+function useResource<T>(path: string, refreshInterval = 0) {
   const [data, setData] = useState<T | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -718,9 +821,15 @@ function useResource<T>(path: string) {
   useEffect(() => {
     let active = true
     setLoading(true); setError('')
-    api<T>(path).then((result) => { if (active) setData(result) }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : '数据加载失败') }).finally(() => { if (active) setLoading(false) })
-    return () => { active = false }
-  }, [path, version])
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const load = () => {
+      api<T>(path).then((result) => { if (active) { setData(result); setError('') } }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : '数据加载失败') }).finally(() => {
+        if (active) { setLoading(false); if (refreshInterval) timer = setTimeout(load, refreshInterval) }
+      })
+    }
+    load()
+    return () => { active = false; clearTimeout(timer) }
+  }, [path, version, refreshInterval])
   const reload = useCallback(() => setVersion((current) => current + 1), [])
   return { data, loading, error, reload }
 }
@@ -737,7 +846,7 @@ function StatusSelect({ value, onChange }: { value: string; onChange: (value: st
   return <label className="select-field"><span className="sr-only">内容状态</span><select value={value} onChange={(event) => onChange(event.target.value)}><option value="ALL">全部状态</option><option value="PUBLISHED">已发布</option><option value="DRAFT">草稿</option><option value="ARCHIVED">已下架</option></select></label>
 }
 
-function Table({ children }: { children: ReactNode }) { return <div className="table-scroll"><table>{children}</table></div> }
+function Table({ children, className = '' }: { children: ReactNode; className?: string }) { return <div className={`table-scroll ${className}`.trim()}><table>{children}</table></div> }
 
 function TableSurface({ loading, empty, emptyText, emptyHint, children }: { loading: boolean; empty: boolean; emptyText: string; emptyHint: string; children: ReactNode }) {
   return <section className="table-surface">{loading ? <TableSkeleton /> : empty ? <EmptyState title={emptyText} description={emptyHint} /> : children}</section>

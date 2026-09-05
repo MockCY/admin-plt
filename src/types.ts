@@ -17,16 +17,23 @@ export type Dashboard = {
 export type UserRow = {
   id: number; nickname?: string; phone?: string; avatarUrl?: string; status: string
   workoutCount: number; totalMinutes: number; createdAt: string; updatedAt: string
+  presence?: { online: boolean; lastOnlineAt?: string; lastOfflineAt?: string }
 }
 
+export type PresenceVisit = { id: number; onlineAt: string; offlineAt?: string; endReason?: string }
+
+export type TrainingSet = { side: string; durationSeconds: number; repetitions: number; springCount: number }
+export type CourseExercise = { exerciseId: number; sets: TrainingSet[] }
 export type CourseRow = {
   id: number; title: string; type: string; durationMinutes: number; level: string; equipment: string
   summary: string; coverImage?: string; videoUrl?: string; videoCoverImage?: string
   videoDurationSeconds?: number; viewCount: number; status: Status; sortOrder: number
   exerciseIds: number[]; createdAt: string; updatedAt: string
+  introduction?: string; audience?: string; exercises?: CourseExercise[]
 }
 
 export type ExerciseRow = {
+  focusImageUrl?: string; focusParts?: string; springSets?: number[]; keyPoints?: string; commonMistakes?: string; instructionAudioUrl?: string
   id: number; name: string; bodyPart: string; level: string; equipment: string; suggestedSets: number
   target: string; cue: string; safetyTip: string; coverImage?: string; videoUrl?: string
   videoCoverImage?: string; videoDurationSeconds?: number; backgroundMusicUrl?: string; status: Status; sortOrder: number
@@ -60,6 +67,7 @@ export type DeviceRow = {
   id: number; serialNumber: string; deviceModel: string; brand?: string; deviceName?: string
   deviceSource: 'OWN' | 'THIRD_PARTY'; bound: boolean; boundUserId?: number
   boundUserName?: string; boundUserPhone?: string; createdAt: string; updatedAt: string
+  boundAt?: string; unboundAt?: string
 }
 
 export type DeviceBatchCreateResult = {
@@ -67,7 +75,7 @@ export type DeviceBatchCreateResult = {
 }
 
 export type DeviceModelRow = {
-  id: number; name: string; snPrefix: string; deviceCount: number; createdAt: string; updatedAt: string
+  id: number; name: string; brand: string; snPrefix: string; deviceCount: number; createdAt: string; updatedAt: string
 }
 
 export type AuditRow = {
