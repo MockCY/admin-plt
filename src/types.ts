@@ -22,14 +22,14 @@ export type UserRow = {
 
 export type PresenceVisit = { id: number; onlineAt: string; offlineAt?: string; endReason?: string }
 
-export type TrainingSet = { side: string; durationSeconds: number; repetitions: number; springCount: number }
-export type CourseExercise = { exerciseId: number; sets: TrainingSet[] }
+export type TrainingSet = { side: string; durationSeconds?: number; repetitions: number | null; springCount: number }
+export type CourseExercise = { exerciseId: number; sets: TrainingSet[]; recommendedPlays?: number | null }
 export type CourseRow = {
   id: number; title: string; type: string; durationMinutes: number; level: string; equipment: string
   summary: string; coverImage?: string; videoUrl?: string; videoCoverImage?: string
   videoDurationSeconds?: number; viewCount: number; status: Status; sortOrder: number
   exerciseIds: number[]; createdAt: string; updatedAt: string
-  introduction?: string; audience?: string; exercises?: CourseExercise[]
+  introduction?: string; audience?: string; trainingTags?: string; exercises?: CourseExercise[]
 }
 
 export type ExerciseRow = {
