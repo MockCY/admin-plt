@@ -7,12 +7,13 @@ import {
 } from 'lucide-react'
 import { api, apiBlob, downloadMedia, getToken, json, mediaUrl, setToken, uploadMedia } from './api'
 import { CourseTrainingEditor } from './CourseTrainingEditor'
+import { SensorsPage, SensorWorkouts, useSensorLocation } from './SensorAdmin'
 import type {
   AuditRow, CampaignRow, CourseRow, Dashboard, DeviceBatchCreateResult, DeviceModelRow, DeviceRow, ExerciseRow, FeedbackRow, PageResult,
   PlanItem, PlanRow, PresenceVisit, Status, UserRow, WorkoutRow,
 } from './types'
 
-type RouteKey = 'dashboard' | 'users' | 'courses' | 'exercises' | 'plans' | 'campaigns' | 'devices' | 'device-models' | 'workouts' | 'feedback' | 'audits'
+type RouteKey = 'dashboard' | 'users' | 'courses' | 'exercises' | 'plans' | 'campaigns' | 'devices' | 'sensors' | 'device-models' | 'workouts' | 'feedback' | 'audits'
 
 const ROUTES: { key: RouteKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: 'dashboard', label: '数据概览', icon: LayoutDashboard },
@@ -22,6 +23,7 @@ const ROUTES: { key: RouteKey; label: string; icon: typeof LayoutDashboard }[] =
   { key: 'plans', label: '训练计划', icon: CalendarDays },
   { key: 'campaigns', label: '训练营', icon: Flag },
   { key: 'devices', label: '设备管理', icon: Activity },
+  { key: 'sensors', label: '传感器管理', icon: Activity },
   { key: 'device-models', label: '设备型号', icon: Tags },
   { key: 'workouts', label: '训练记录', icon: ClipboardList },
   { key: 'feedback', label: '问题反馈', icon: MessageSquareText },
@@ -49,7 +51,7 @@ function formatMediaDuration(value?: number) {
 }
 
 function routeFromHash(): RouteKey {
-  const hash = window.location.hash.replace('#/', '') as RouteKey
+  const hash = window.location.hash.replace('#/', '').split('?')[0] as RouteKey
   return ROUTES.some((item) => item.key === hash) ? hash : 'dashboard'
 }
 
@@ -122,6 +124,7 @@ export default function App() {
           {route === 'plans' && <PlansPage />}
           {route === 'campaigns' && <CampaignsPage />}
           {route === 'devices' && <DevicesPage />}
+          {route === 'sensors' && <SensorsPage />}
           {route === 'device-models' && <DeviceModelsPage />}
           {route === 'workouts' && <WorkoutsPage />}
           {route === 'feedback' && <FeedbackPage />}
@@ -251,8 +254,8 @@ function UsersPage() {
     </Toolbar>
     {error && <ErrorBanner message={error} onRetry={reload} />}
     <TableSurface loading={loading} empty={!data?.items.length} emptyText="没有符合条件的用户" emptyHint="暂无匹配用户。">
-      <Table className="users-table"><thead><tr><th>用户</th><th>手机号</th><th>在线状态</th><th>最近上线</th><th>最近离线</th><th>训练次数</th><th>累计时长</th><th>账号状态</th><th>注册时间</th><th><span className="sr-only">操作</span></th></tr></thead>
-        <tbody>{data?.items.map((item) => <tr key={item.id}><td><div className="user-cell">{item.avatarUrl ? <img src={mediaUrl(item.avatarUrl)} alt="" /> : <span className="mini-avatar">{(item.nickname || '用').slice(0, 1)}</span>}<span><strong>{item.nickname || `用户 ${item.id}`}</strong><small>ID {item.id}</small></span></div></td><td>{item.phone || '未绑定'}</td><td><span className={`presence-status ${item.presence?.online ? 'online' : 'offline'}`}>{item.presence?.online ? '在线' : '离线'}</span></td><td className="presence-time">{formatPresenceDate(item.presence?.lastOnlineAt)}</td><td className="presence-time">{formatPresenceDate(item.presence?.lastOfflineAt)}</td><td>{item.workoutCount}</td><td>{item.totalMinutes} 分钟</td><td><Badge status={item.status} /></td><td>{formatDate(item.createdAt)}</td><td><div className="row-actions"><button className="icon-button" onClick={() => setHistoryUser(item)} aria-label={`查看用户 ${item.id} 上下线记录`} title="上下线记录"><FileClock size={17} /></button><button className="icon-button" onClick={() => setEditing(item)} aria-label={`编辑用户 ${item.id}`} title="编辑绑定与状态"><Pencil size={17} /></button></div></td></tr>)}</tbody>
+      <Table className="users-table"><thead><tr><th>用户</th><th>手机号</th><th>在线状态</th><th>最近上线</th><th>最近离线</th><th>课程记录数</th><th>课程观看时长</th><th>账号状态</th><th>注册时间</th><th><span className="sr-only">操作</span></th></tr></thead>
+        <tbody>{data?.items.map((item) => <tr key={item.id}><td><div className="user-cell">{item.avatarUrl ? <img src={mediaUrl(item.avatarUrl)} alt="" /> : <span className="mini-avatar">{(item.nickname || '用').slice(0, 1)}</span>}<span><strong>{item.nickname || `用户 ${item.id}`}</strong><small>ID {item.id}</small></span></div></td><td>{item.phone || '未绑定'}</td><td><span className={`presence-status ${item.presence?.online ? 'online' : 'offline'}`}>{item.presence?.online ? '在线' : '离线'}</span></td><td className="presence-time">{formatPresenceDate(item.presence?.lastOnlineAt)}</td><td className="presence-time">{formatPresenceDate(item.presence?.lastOfflineAt)}</td><td>{item.workoutCount}</td><td>{item.totalMinutes} 分钟</td><td><Badge status={item.status} /></td><td>{formatDate(item.createdAt)}</td><td><div className="row-actions"><a className="icon-button" href={`#/workouts?type=sensor&userId=${item.id}&label=${encodeURIComponent(item.nickname || `用户 ${item.id}`)}`} aria-label={`查看用户 ${item.id} 设备训练记录`} title="设备训练记录"><ClipboardList size={17} /></a><button className="icon-button" onClick={() => setHistoryUser(item)} aria-label={`查看用户 ${item.id} 上下线记录`} title="上下线记录"><FileClock size={17} /></button><button className="icon-button" onClick={() => setEditing(item)} aria-label={`编辑用户 ${item.id}`} title="编辑绑定与状态"><Pencil size={17} /></button></div></td></tr>)}</tbody>
       </Table>
     </TableSurface>
     {data && <Pagination data={data} onPage={setPage} />}
@@ -476,7 +479,7 @@ function DevicesPage() {
     {exportError && <div className="form-error export-error" role="alert">{exportError}</div>}
     <TableSurface loading={loading} empty={!data?.items.length} emptyText="还没有设备" emptyHint="选择设备型号和品牌后，系统会生成唯一 SN 和可下载的设备标签。">
       <Table className="device-binding-table"><thead><tr><th className="selection-cell"><input type="checkbox" checked={allCurrentSelected} disabled={!selectableItems.length} onChange={toggleCurrentPage} aria-label="选择当前页自有设备" title="选择当前页自有设备" /></th><th>序列号</th><th>设备</th><th>品牌</th><th>来源</th><th>绑定用户</th><th>状态</th><th>最近绑定时间</th><th>最近解绑时间</th><th>创建时间</th><th><span className="sr-only">操作</span></th></tr></thead>
-        <tbody>{data?.items.map((item) => <tr key={item.id} className={selectedIds.has(item.id) ? 'selected-row' : ''}><td className="selection-cell"><input type="checkbox" checked={selectedIds.has(item.id)} disabled={item.deviceSource === 'THIRD_PARTY' || (!selectedIds.has(item.id) && selectedIds.size >= 100)} onChange={(event) => toggleDevice(item.id, event.target.checked)} aria-label={item.deviceSource === 'THIRD_PARTY' ? `${item.serialNumber} 为第三方设备，不能导出标签` : `选择设备 ${item.serialNumber}`} title={item.deviceSource === 'THIRD_PARTY' ? '第三方设备不生成品牌设备标签' : '选择导出'} /></td><td><code>{item.serialNumber}</code></td><td><div className="cell-stack"><span className="cell-title">{item.deviceName || item.deviceModel}</span>{item.deviceName && item.deviceName !== item.deviceModel && <small>{item.deviceModel}</small>}</div></td><td>{item.brand || '第三方'}</td><td>{item.deviceSource === 'THIRD_PARTY' ? '第三方设备' : '自有设备'}</td><td>{item.boundUserId ? <div className="cell-stack"><span>{item.boundUserName || `用户 #${item.boundUserId}`}</span>{item.boundUserPhone && <small>{item.boundUserPhone}</small>}</div> : '未绑定用户'}</td><td><Badge status={item.bound ? 'BOUND' : item.unboundAt ? 'RELEASED' : 'UNBOUND'} /></td><td className="presence-time">{formatPresenceDate(item.boundAt)}</td><td className="presence-time">{formatPresenceDate(item.unboundAt)}</td><td>{formatDate(item.createdAt)}</td><td><div className="row-actions">{item.deviceSource !== 'THIRD_PARTY' && <button className="icon-button" onClick={() => setLabelDevice(item)} aria-label="查看设备标签" title="查看设备标签"><QrCode size={17} /></button>}<button className="icon-button danger" onClick={() => setDeleting(item)} aria-label="删除" title="删除"><Trash2 size={17} /></button></div></td></tr>)}</tbody>
+        <tbody>{data?.items.map((item) => <tr key={item.id} className={selectedIds.has(item.id) ? 'selected-row' : ''}><td className="selection-cell"><input type="checkbox" checked={selectedIds.has(item.id)} disabled={item.deviceSource === 'THIRD_PARTY' || (!selectedIds.has(item.id) && selectedIds.size >= 100)} onChange={(event) => toggleDevice(item.id, event.target.checked)} aria-label={item.deviceSource === 'THIRD_PARTY' ? `${item.serialNumber} 为第三方设备，不能导出标签` : `选择设备 ${item.serialNumber}`} title={item.deviceSource === 'THIRD_PARTY' ? '第三方设备不生成品牌设备标签' : '选择导出'} /></td><td><code>{item.serialNumber}</code></td><td><div className="cell-stack"><span className="cell-title">{item.deviceName || item.deviceModel}</span>{item.deviceName && item.deviceName !== item.deviceModel && <small>{item.deviceModel}</small>}</div></td><td>{item.brand || '第三方'}</td><td>{item.deviceSource === 'THIRD_PARTY' ? '第三方设备' : '自有设备'}</td><td>{item.boundUserId ? <div className="cell-stack"><span>{item.boundUserName || `用户 #${item.boundUserId}`}</span>{item.boundUserPhone && <small>{item.boundUserPhone}</small>}</div> : '未绑定用户'}</td><td><Badge status={item.bound ? 'BOUND' : item.unboundAt ? 'RELEASED' : 'UNBOUND'} /></td><td className="presence-time">{formatPresenceDate(item.boundAt)}</td><td className="presence-time">{formatPresenceDate(item.unboundAt)}</td><td>{formatDate(item.createdAt)}</td><td><div className="row-actions"><a className="icon-button" href={`#/sensors?bedId=${item.id}&label=${encodeURIComponent(item.serialNumber)}`} title="传感器与绑定" aria-label={`查看 ${item.serialNumber} 传感器`}><Activity size={17} /></a><a className="icon-button" href={`#/workouts?type=sensor&bedId=${item.id}&label=${encodeURIComponent(item.serialNumber)}`} title="设备训练记录" aria-label={`查看 ${item.serialNumber} 训练记录`}><ClipboardList size={17} /></a>{item.deviceSource !== 'THIRD_PARTY' && <button className="icon-button" onClick={() => setLabelDevice(item)} aria-label="查看设备标签" title="查看设备标签"><QrCode size={17} /></button>}<button className="icon-button danger" onClick={() => setDeleting(item)} aria-label="删除" title="删除"><Trash2 size={17} /></button></div></td></tr>)}</tbody>
       </Table>
     </TableSurface>
     {data && <Pagination data={data} onPage={setPage} />}
@@ -510,15 +513,21 @@ function DeviceModelsPage() {
 }
 
 function WorkoutsPage() {
+  const params = useSensorLocation()
+  const mode = params.get('type') === 'course' ? 'course' : 'sensor'
+  return <><div className="filter-tabs" role="group" aria-label="记录分类"><button className={mode === 'sensor' ? 'active' : ''} aria-pressed={mode === 'sensor'} onClick={() => { window.location.hash = '#/workouts?type=sensor' }}>设备训练</button><button className={mode === 'course' ? 'active' : ''} aria-pressed={mode === 'course'} onClick={() => { window.location.hash = '#/workouts?type=course' }}>课程观看</button></div>{mode === 'sensor' ? <SensorWorkouts /> : <CourseWorkoutsPage />}</>
+}
+
+function CourseWorkoutsPage() {
   const [query, setQuery] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const { data, loading, error, reload } = useResource<PageResult<WorkoutRow>>(`/workouts?query=${encodeURIComponent(search)}&page=${page}&pageSize=20`)
-  return <Page title="训练记录" description="训练记录来自用户实际训练，只提供查询，不允许后台修改。">
+  return <Page title="课程观看记录" description="">
     <Toolbar onSubmit={() => { setSearch(query); setPage(1) }} query={query} setQuery={setQuery} placeholder="搜索用户或课程" onRefresh={reload} loading={loading} />
     {error && <ErrorBanner message={error} onRetry={reload} />}
     <TableSurface loading={loading} empty={!data?.items.length} emptyText="还没有训练记录" emptyHint="用户完成训练后，记录会自动出现在这里。">
-      <Table><thead><tr><th>用户</th><th>课程</th><th>训练时长</th><th>完成度</th><th>开始时间</th><th>完成时间</th></tr></thead>
+      <Table><thead><tr><th>用户</th><th>课程</th><th>观看时长</th><th>完成度</th><th>开始时间</th><th>完成时间</th></tr></thead>
         <tbody>{data?.items.map((item) => <tr key={item.id}><td className="cell-title">{item.userName}</td><td>{item.courseTitle}</td><td>{item.durationMinutes} 分钟</td><td><span className="progress-value"><span style={{ width: `${item.completionPercent}%` }} />{item.completionPercent}%</span></td><td>{formatDate(item.startedAt)}</td><td>{formatDate(item.completedAt)}</td></tr>)}</tbody>
       </Table>
     </TableSurface>
