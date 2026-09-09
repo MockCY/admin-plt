@@ -67,6 +67,52 @@
   .sensor-toolbar select { flex: 1 1 140px; min-width: 0; }
 }
 
+.workouts-page { width: min(1440px, 100%); margin: 0 auto; letter-spacing: 0; }
+.workout-view-tabs { display: flex; gap: 28px; margin-bottom: 22px; border-bottom: 1px solid var(--line); }
+.workout-view-tabs button { min-height: 42px; padding: 0 2px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--ink-soft); font-size: 14px; cursor: pointer; }
+.workout-view-tabs button:hover { color: var(--green-dark); }
+.workout-view-tabs button.active { border-bottom-color: var(--green-dark); color: var(--green-dark); font-weight: 650; }
+.workouts-page .page-header { margin-bottom: 20px; align-items: center; }
+.workouts-page .page-header h1 { margin: 0; font-size: 22px; line-height: 1.4; letter-spacing: 0; }
+.workout-filters { display: grid; grid-template-columns: minmax(230px, 1fr) 132px 150px 150px auto; gap: 12px; align-items: end; padding: 0 0 22px; }
+.workout-field { min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.workout-field > span { font-size: 12px; color: var(--ink-soft); }
+.workout-field > input, .workout-field > select, .workout-field .search-field { width: 100%; min-width: 0; height: 40px; min-height: 40px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--paper); color: var(--ink); font-size: 13px; }
+.workout-field > input, .workout-field > select { padding: 0 10px; }
+.workout-field .search-field { padding: 0 11px; gap: 8px; max-width: none; }
+.workout-field .search-field input { width: 100%; min-width: 0; font-size: 13px; }
+.workout-filter-actions { display: flex; gap: 6px; }
+.workout-filter-actions .button { min-height: 40px; border-radius: 6px; padding: 0 14px; }
+.device-workouts .sensor-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: 16px; padding: 18px 0; margin: 0; border-block: 1px solid var(--line); }
+.device-workouts .sensor-summary > span { display: flex; flex-direction: column; gap: 7px; font-size: 12px; }
+.device-workouts .sensor-summary strong { margin: 0; font-size: 20px; line-height: 1.3; font-weight: 650; }
+.device-workouts .sensor-summary > span:nth-child(2) strong { color: var(--green-dark); }
+.device-workouts .sensor-summary small { align-self: start; margin: 0; font-size: 11px; color: var(--ink-muted); }
+.workout-results { margin-top: 20px; border-bottom: 1px solid var(--line); }
+.workout-results table { min-width: 1060px; }
+.workout-results th { background: var(--soft); font-size: 12px; }
+.workout-results td { font-size: 13px; }
+.workout-results .pagination { border-top: 1px solid var(--line); min-height: 56px; }
+.workout-empty { min-height: 220px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 32px 16px; background: var(--paper); color: var(--ink-muted); }
+.workout-empty h3 { margin: 0; font-size: 14px; font-weight: 500; color: var(--ink-soft); }
+@media (max-width: 1250px) {
+  .workout-filters { grid-template-columns: minmax(160px, 1fr) 150px 150px auto; }
+  .workout-search { grid-column: 1 / -1; }
+}
+@media (max-width: 640px) {
+  .workouts-page .page-header { align-items: flex-start; gap: 12px; }
+  .workouts-page .page-header h1 { font-size: 20px; }
+  .workout-view-tabs { margin-bottom: 18px; }
+  .workout-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .workout-search { grid-column: 1 / -1; }
+  .workout-filters > .workout-field:nth-child(2) { grid-column: 1 / -1; }
+  .workout-filter-actions { grid-column: 1 / -1; justify-content: flex-end; }
+  .device-workouts .sensor-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 12px; }
+  .device-workouts .sensor-summary strong { font-size: 18px; }
+  .device-workouts .sensor-summary small { grid-column: 1 / -1; }
+  .workout-results .pagination > div { gap: 4px; }
+}
+
 * { box-sizing: border-box; }
 html { min-width: 320px; background: var(--canvas); }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--canvas); }
