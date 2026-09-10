@@ -42,6 +42,7 @@
 .sensor-state { display: inline-flex; padding: 4px 8px; border-radius: 4px; font-size: 12px; white-space: nowrap; color: var(--ink-soft); background: var(--soft); }
 .sensor-state-moving, .sensor-state-active { color: var(--green-dark); background: var(--green-soft); }
 .sensor-state-still, .sensor-state-completed { color: var(--info); background: var(--info-soft); }
+.sensor-state-paused { color: var(--warning); background: var(--warning-soft); }
 .sensor-state-error, .sensor-state-disabled { color: var(--danger); background: var(--danger-soft); }
 .sensor-state-standby { color: var(--warning); background: var(--warning-soft); }
 .sensor-summary { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; padding: 16px 0; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-soft); }
