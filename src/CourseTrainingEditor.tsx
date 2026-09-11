@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, Check, ChevronDown, Dumbbell, LoaderCircle, Plus, RefreshCw, Search, Trash2 } from 'lucide-react'
 import { api, mediaUrl } from './api'
+import { exerciseCategoryLabel } from './exerciseCategories'
 import type { CourseExercise, ExerciseRow, PageResult, TrainingSet } from './types'
 
 function ActionCover({ src, name }: { src?: string; name: string }) {
@@ -52,7 +53,7 @@ export function CourseTrainingEditor({ value, onChange }: { value: CourseExercis
     ;[items[index], items[index + delta]] = [items[index + delta], items[index]]
     onChange(items)
   }
-  const matches = library.filter(item => `${item.name} ${item.bodyPart} ${item.level}`.toLowerCase().includes(query.trim().toLowerCase()))
+  const matches = library.filter(item => `${item.name} ${exerciseCategoryLabel(item.bodyPart)} ${item.bodyPart} ${item.level}`.toLowerCase().includes(query.trim().toLowerCase()))
   const selected = (id: number) => value.some(item => item.exerciseId === id)
   const close = () => { setOpen(false); setQuery(''); setActiveIndex(-1) }
   function add(item: ExerciseRow) {
@@ -86,7 +87,7 @@ export function CourseTrainingEditor({ value, onChange }: { value: CourseExercis
       <div className="course-picker-heading"><strong>添加动作</strong><span>{value.length} / 100</span></div>
       <button ref={triggerRef} type="button" className={`course-picker-trigger${open ? ' is-open' : ''}`} aria-expanded={open} aria-controls={listId} aria-haspopup="listbox" disabled={value.length >= 100} onClick={() => { if (open) close(); else setOpen(true) }}><Plus size={18} /><span>{value.length >= 100 ? '已达到动作数量上限' : '选择动作'}</span><ChevronDown size={17} /></button>
       {open && <div className="course-picker-dropdown">
-        <div className="course-library-search"><Search size={17} /><input ref={searchRef} role="combobox" aria-label="搜索动作库" aria-autocomplete="list" aria-expanded={open} aria-controls={listId} aria-activedescendant={activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined} placeholder="搜索名称、部位或难度" value={query} onChange={event => { setQuery(event.target.value); setActiveIndex(-1) }} onKeyDown={event => {
+        <div className="course-library-search"><Search size={17} /><input ref={searchRef} role="combobox" aria-label="搜索动作库" aria-autocomplete="list" aria-expanded={open} aria-controls={listId} aria-activedescendant={activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined} placeholder="搜索名称、类型或难度" value={query} onChange={event => { setQuery(event.target.value); setActiveIndex(-1) }} onKeyDown={event => {
           if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); triggerRef.current?.focus() }
           if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             event.preventDefault()
@@ -98,7 +99,7 @@ export function CourseTrainingEditor({ value, onChange }: { value: CourseExercis
         <div className="course-library-list" id={listId} role="listbox" aria-label="动作库" aria-busy={loading}>
           {!loading && !error && matches.map((item, index) => <button type="button" role="option" aria-selected={selected(item.id)} aria-disabled={selected(item.id)} tabIndex={-1} id={`${listId}-${index}`} key={item.id} className={activeIndex === index ? 'is-active' : ''} onMouseDown={event => event.preventDefault()} onClick={() => add(item)}>
             <span className="course-option-image">{item.coverImage ? <img src={mediaUrl(item.coverImage)} alt="" onError={event => { event.currentTarget.style.display = 'none' }} /> : null}<Dumbbell size={20} /></span>
-            <span className="course-option-copy"><strong>{item.name}</strong><small>{[item.bodyPart, item.level].filter(Boolean).join(' · ')}</small></span>
+            <span className="course-option-copy"><strong>{item.name}</strong><small>{[exerciseCategoryLabel(item.bodyPart), item.level].filter(Boolean).join(' · ')}</small></span>
             <span className={`course-option-status${item.status === 'PUBLISHED' ? '' : ' is-draft'}`}>{selected(item.id) ? <><Check size={14} />已添加</> : item.status === 'PUBLISHED' ? '已发布' : item.status === 'ARCHIVED' ? '已下架' : '草稿'}</span>
           </button>)}
         </div>

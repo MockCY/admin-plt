@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { api, apiBlob, downloadMedia, getToken, json, mediaUrl, setToken, uploadMedia } from './api'
 import { CourseTrainingEditor } from './CourseTrainingEditor'
+import { EXERCISE_CATEGORIES, exerciseCategoryLabel, normalizeExerciseCategory } from './exerciseCategories'
 import { SensorsPage, SensorWorkouts, useSensorLocation } from './SensorAdmin'
 import type {
   AuditRow, CampaignRow, CourseRow, Dashboard, DeviceBatchCreateResult, DeviceModelRow, DeviceRow, ExerciseRow, FeedbackRow, PageResult,
@@ -322,10 +323,11 @@ function ExercisesPage() {
   const [query, setQuery] = useState('')
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('ALL')
+  const [bodyPart, setBodyPart] = useState('')
   const [page, setPage] = useState(1)
   const [editing, setEditing] = useState<ExerciseRow | 'new' | null>(null)
   const [deleting, setDeleting] = useState<ExerciseRow | null>(null)
-  const path = `/exercises?query=${encodeURIComponent(search)}&status=${status}&page=${page}&pageSize=20`
+  const path = `/exercises?query=${encodeURIComponent(search)}&status=${status}&bodyPart=${encodeURIComponent(bodyPart)}&page=${page}&pageSize=20`
   const { data, loading, error, reload } = useResource<PageResult<ExerciseRow>>(path)
   const remove = async () => {
     if (!deleting) return
@@ -333,11 +335,11 @@ function ExercisesPage() {
     setDeleting(null); reload()
   }
   return <Page title="动作管理" description="维护动作要领、安全提示和训练媒体。" action={<button className="button primary" onClick={() => setEditing('new')}><Plus size={17} />新增动作</button>}>
-    <Toolbar onSubmit={() => { setSearch(query); setPage(1) }} query={query} setQuery={setQuery} placeholder="搜索动作" onRefresh={reload} loading={loading}><StatusSelect value={status} onChange={setStatus} /></Toolbar>
+    <Toolbar onSubmit={() => { setSearch(query); setPage(1) }} query={query} setQuery={setQuery} placeholder="搜索动作" onRefresh={reload} loading={loading}><label className="select-field"><span className="sr-only">动作类型</span><select value={bodyPart} onChange={event => { setBodyPart(event.target.value); setPage(1) }}><option value="">全部类型</option>{EXERCISE_CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}</select></label><StatusSelect value={status} onChange={value => { setStatus(value); setPage(1) }} /></Toolbar>
     {error && <ErrorBanner message={error} onRetry={reload} />}
     <TableSurface loading={loading} empty={!data?.items.length} emptyText="还没有动作" emptyHint="创建动作后，可以把它编排到课程中。">
-      <Table><thead><tr><th>动作</th><th>部位</th><th>难度</th><th>弹簧组数</th><th>状态</th><th>更新时间</th><th><span className="sr-only">操作</span></th></tr></thead>
-        <tbody>{data?.items.map((item) => <tr key={item.id}><td><div className="content-cell"><MediaThumbnail src={item.coverImage} label={item.name} icon="exercise" /><span><strong>{item.name}</strong><small>{item.equipment}</small></span></div></td><td>{item.bodyPart}</td><td>{item.level}</td><td>{item.springSets?.length ? item.springSets.map((count) => `${count} 组`).join('、') : '未配置'}</td><td><Badge status={item.status} /></td><td>{formatDate(item.updatedAt)}</td><td><RowActions onEdit={() => setEditing(item)} onDelete={() => setDeleting(item)} /></td></tr>)}</tbody>
+      <Table><thead><tr><th>动作</th><th>类型</th><th>难度</th><th>弹簧组数</th><th>状态</th><th>更新时间</th><th><span className="sr-only">操作</span></th></tr></thead>
+        <tbody>{data?.items.map((item) => <tr key={item.id}><td><div className="content-cell"><MediaThumbnail src={item.coverImage} label={item.name} icon="exercise" /><span><strong>{item.name}</strong><small>{item.equipment}</small></span></div></td><td>{exerciseCategoryLabel(item.bodyPart)}</td><td>{item.level}</td><td>{item.springSets?.length ? item.springSets.map((count) => `${count} 组`).join('、') : '未配置'}</td><td><Badge status={item.status} /></td><td>{formatDate(item.updatedAt)}</td><td><RowActions onEdit={() => setEditing(item)} onDelete={() => setDeleting(item)} /></td></tr>)}</tbody>
       </Table>
     </TableSurface>
     {data && <Pagination data={data} onPage={setPage} />}
@@ -675,7 +677,7 @@ function ExerciseEditor({ value, onClose, onSaved }: { value: ExerciseRow | null
   const [form, setForm] = useState({
     focusImageUrl: value?.focusImageUrl || '', focusParts: value?.focusParts || '', springSets: value?.springSets || [] as number[],
     keyPoints: value?.keyPoints || '', commonMistakes: value?.commonMistakes || '', instructionAudioUrl: value?.instructionAudioUrl || '',
-    name: value?.name || '', bodyPart: value?.bodyPart || '核心', level: value?.level === '拉伸' ? '挑战' : value?.level || '基础',
+    name: value?.name || '', bodyPart: value ? normalizeExerciseCategory(value.bodyPart) : EXERCISE_CATEGORIES[0], level: value?.level === '拉伸' ? '挑战' : value?.level || '基础',
     equipment: value?.equipment || '', suggestedSets: value?.suggestedSets || 2,
     target: value?.target || '', cue: value?.cue || '', safetyTip: value?.safetyTip || '',
     coverImage: value?.coverImage || '', videoUrl: value?.videoUrl || '', videoCoverImage: value?.videoCoverImage || '',
@@ -688,7 +690,7 @@ function ExerciseEditor({ value, onClose, onSaved }: { value: ExerciseRow | null
   const submit = async (event: FormEvent) => { event.preventDefault(); const tokens = springInput.trim() ? springInput.trim().split(/[,，、\s]+/) : []; const springSets = tokens.map(Number); if (springSets.some((count) => !Number.isInteger(count) || count < 1 || count > 20) || springSets.length > 20) { setError('弹簧组数请输入 1 至 20 的整数，多个组数用逗号分隔'); return } setBusy(true); setError(''); try { await api(value ? `/exercises/${value.id}` : '/exercises', json(value ? 'PUT' : 'POST', { ...form, focusParts: '', springSets: [...new Set(springSets)] })); onSaved() } catch (reason) { setError(reason instanceof Error ? reason.message : '动作保存失败') } finally { setBusy(false) } }
   return <SidePanel title={value ? '编辑动作' : '新增动作'} subtitle="动作可被多个课程重复使用" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" type="submit" form="exercise-form" disabled={busy}>{busy ? '正在保存' : '保存动作'}</button></div>}>
     <form id="exercise-form" className="editor-form exercise-editor" onSubmit={submit}>{error && <div className="form-error">{error}</div>}
-      <FormSection title="基本信息"><div className="form-grid"><Field label="动作名称" required><input value={form.name} onChange={(event) => update('name', event.target.value)} required /></Field><Field label="训练部位" required><select value={form.bodyPart} onChange={(event) => update('bodyPart', event.target.value)} required>{Array.from(new Set(['核心', '肩背', '下肢', '全身', form.bodyPart].filter(Boolean))).map((item) => <option key={item} value={item}>{item}</option>)}</select></Field><Field label="难度" required><select value={form.level} onChange={(event) => update('level', event.target.value)} required>{Array.from(new Set(['基础', '进阶', '挑战', form.level].filter(Boolean))).map((item) => <option key={item} value={item}>{item}</option>)}</select></Field><Field label="器械"><input value={form.equipment} maxLength={80} onChange={event => update('equipment', event.target.value)} required /></Field></div></FormSection>
+      <FormSection title="基本信息"><div className="form-grid"><Field label="动作名称" required><input value={form.name} onChange={(event) => update('name', event.target.value)} required /></Field><Field label="动作类型" required hint={value && !normalizeExerciseCategory(value.bodyPart) ? `原类型“${value.bodyPart || '未设置'}”需要重新选择` : undefined}><select aria-label="动作类型" value={form.bodyPart} onChange={(event) => update('bodyPart', event.target.value)} required>{!form.bodyPart && <option value="" disabled>请选择动作类型</option>}{EXERCISE_CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field><Field label="难度" required><select value={form.level} onChange={(event) => update('level', event.target.value)} required>{Array.from(new Set(['基础', '进阶', '挑战', form.level].filter(Boolean))).map((item) => <option key={item} value={item}>{item}</option>)}</select></Field><Field label="器械"><input value={form.equipment} maxLength={80} onChange={event => update('equipment', event.target.value)} required /></Field></div></FormSection>
       <FormSection title="训练配置"><div className="exercise-training-grid"><Field label="建议弹簧组数" hint="多个组数用逗号分隔"><input value={springInput} onChange={(event) => setSpringInput(event.target.value)} placeholder="例如 2, 3" maxLength={80} /></Field><MediaUploader hint="完整展示图片，不裁切" label="重点部位图片" kind="image" value={form.focusImageUrl} onChange={(next) => update('focusImageUrl', next)} /></div></FormSection>
       <FormSection title="动作说明"><div className="form-grid"><Field label="动作要领" required hint="每行一条"><textarea rows={3} value={form.cue} onChange={(event) => update('cue', event.target.value)} required /></Field><Field label="安全提示" required><textarea rows={3} value={form.safetyTip} onChange={(event) => update('safetyTip', event.target.value)} required /></Field><Field label="动作要点" hint="每行一条"><textarea rows={4} maxLength={2000} value={form.keyPoints} onChange={(event) => update('keyPoints', event.target.value)} /></Field><Field label="常见错误" hint="每行一条"><textarea rows={4} maxLength={2000} value={form.commonMistakes} onChange={(event) => update('commonMistakes', event.target.value)} /></Field></div></FormSection>
       <FormSection title="动作媒体" ><div className="media-grid"><MediaUploader label="动作封面" kind="image" value={form.coverImage} onChange={(next) => update('coverImage', next)} /><MediaUploader label="示范视频" kind="video" value={form.videoUrl} poster={form.videoCoverImage || form.coverImage} durationSeconds={form.videoDurationSeconds} onDurationChange={(next) => update('videoDurationSeconds', next)} onChange={(next) => update('videoUrl', next)} /><MediaUploader hint="点击后播放语音指令" label="动作指令" kind="audio" value={form.instructionAudioUrl} onChange={(next) => update('instructionAudioUrl', next)} /><MediaUploader label="背景音乐" kind="audio" value={form.backgroundMusicUrl} onChange={(next) => update('backgroundMusicUrl', next)} /></div></FormSection>
