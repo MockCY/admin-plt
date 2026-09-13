@@ -84,13 +84,15 @@
 .workout-field .search-field input { width: 100%; min-width: 0; font-size: 13px; }
 .workout-filter-actions { display: flex; gap: 6px; }
 .workout-filter-actions .button { min-height: 40px; border-radius: 6px; padding: 0 14px; }
-.device-workouts .sensor-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: 16px; padding: 18px 0; margin: 0; border-block: 1px solid var(--line); }
+.device-workouts .sensor-summary { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px; padding: 18px 0; margin: 0; border-block: 1px solid var(--line); }
 .device-workouts .sensor-summary > span { display: flex; flex-direction: column; gap: 7px; font-size: 12px; }
 .device-workouts .sensor-summary strong { margin: 0; font-size: 20px; line-height: 1.3; font-weight: 650; }
 .device-workouts .sensor-summary > span:nth-child(2) strong { color: var(--green-dark); }
-.device-workouts .sensor-summary small { align-self: start; margin: 0; font-size: 11px; color: var(--ink-muted); }
+.device-workouts .sensor-summary small { grid-column: 1 / -1; margin: 0; font-size: 12px; line-height: 1.6; color: var(--ink-soft); }
+.calorie-estimate-note { margin: 14px 0 18px; font-size: 12px; line-height: 1.6; color: var(--ink-soft); }
 .workout-results { margin-top: 20px; border-bottom: 1px solid var(--line); }
 .workout-results table { min-width: 1060px; }
+.device-workouts .workout-results table { min-width: 1160px; }
 .workout-results th { background: var(--soft); font-size: 12px; }
 .workout-results td { font-size: 13px; }
 .workout-results .pagination { border-top: 1px solid var(--line); min-height: 56px; }
@@ -99,6 +101,7 @@
 @media (max-width: 1250px) {
   .workout-filters { grid-template-columns: minmax(160px, 1fr) 150px 150px auto; }
   .workout-search { grid-column: 1 / -1; }
+  .device-workouts .sensor-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {
   .workouts-page .page-header { align-items: flex-start; gap: 12px; }
@@ -246,7 +249,7 @@ tbody tr:hover { background: oklch(98% 0.008 105); }
 .cell-stack small { color: var(--ink-muted); font-size: 0.72rem; font-weight: 450; }
 .truncate-cell { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .content-cell, .user-cell { min-width: 210px; display: flex; align-items: center; gap: 11px; }
-.content-cell img, .media-placeholder { width: 52px; height: 36px; border-radius: 6px; object-fit: cover; }
+.content-cell img, .media-placeholder { width: 52px; height: auto; aspect-ratio: 16 / 9; border-radius: 6px; object-fit: cover; }
 .media-placeholder { display: grid; place-items: center; color: var(--ink-muted); background: var(--soft); }
 .content-cell > span:last-child, .user-cell > span:last-child { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .content-cell strong, .user-cell strong { max-width: 240px; overflow: hidden; color: var(--ink); text-overflow: ellipsis; white-space: nowrap; }
@@ -576,6 +579,25 @@ tbody tr:hover { background: oklch(98% 0.008 105); }
 .exercise-editor .media-grid { gap:20px; }
 @media (max-width:600px) { .exercise-editor .form-section { padding:18px 16px; } .exercise-training-grid { grid-template-columns:minmax(0,1fr); } }
 .exercise-training-grid .media-preview img { object-fit:contain; aspect-ratio:1; max-height:200px; }
+.spring-counts-fieldset { min-width:0; margin:0; padding:0; border:0; }
+.spring-counts-fieldset legend { padding:0; color:var(--ink-soft); font-size:0.8125rem; font-weight:580; }
+.spring-counts-hint { margin:7px 0 12px; color:var(--ink-muted); font-size:0.75rem; line-height:1.5; }
+.spring-counts-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.spring-color-dot { display:inline-block; flex:0 0 9px; width:9px; height:9px; border-radius:50%; }
+.spring-color-red { background:oklch(57% 0.18 27); }
+.spring-color-green { background:oklch(53% 0.12 148); }
+.spring-color-yellow { background:oklch(76% 0.15 87); }
+.spring-color-blue { background:oklch(55% 0.15 252); }
+.spring-count-field > span > span { gap:6px; }
+.spring-count-field .spring-count-control { position:relative; display:block; }
+.spring-count-control input { width:100%; padding-right:40px; }
+.spring-count-control .spring-count-unit { position:absolute; top:50%; right:14px; transform:translateY(-50%); color:var(--ink-muted); font-size:0.75rem; pointer-events:none; }
+.spring-legacy-hint { margin-bottom:0; }
+.spring-clear-button { margin-top:10px; padding:4px 0; border:0; background:transparent; color:var(--ink-soft); font-size:0.75rem; text-decoration:underline; text-underline-offset:3px; cursor:pointer; }
+.spring-clear-button:hover { color:var(--green-dark); }
+.spring-clear-button:focus-visible { outline:2px solid var(--green); outline-offset:3px; border-radius:2px; }
+.spring-summary { display:flex; flex-wrap:wrap; gap:6px 12px; min-width:100px; max-width:240px; white-space:normal; }
+.spring-summary-item { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
 .course-training-action { padding: 18px 0; border-bottom: 1px solid #e3e7e2; }
 .course-training-action-heading { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .course-training-action-heading strong { flex: 1; overflow-wrap: anywhere; }

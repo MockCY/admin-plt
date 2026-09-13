@@ -32,8 +32,10 @@ export type CourseRow = {
   introduction?: string; audience?: string; trainingTags?: string; exercises?: CourseExercise[]
 }
 
+export type SpringCounts = { red: number; green: number; yellow: number; blue: number }
+
 export type ExerciseRow = {
-  focusImageUrl?: string; focusParts?: string; springSets?: number[]; keyPoints?: string; commonMistakes?: string; instructionAudioUrl?: string
+  focusImageUrl?: string; focusParts?: string; springSets?: number[]; springCounts?: SpringCounts | null; keyPoints?: string; commonMistakes?: string; instructionAudioUrl?: string
   id: number; name: string; bodyPart: string; level: string; equipment: string; suggestedSets: number
   target: string; cue: string; safetyTip: string; coverImage?: string; videoUrl?: string
   videoCoverImage?: string; videoDurationSeconds?: number; backgroundMusicUrl?: string; status: Status; sortOrder: number

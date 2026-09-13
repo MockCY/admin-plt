@@ -58,7 +58,7 @@ export function CourseTrainingEditor({ value, onChange }: { value: CourseExercis
   const close = () => { setOpen(false); setQuery(''); setActiveIndex(-1) }
   function add(item: ExerciseRow) {
     if (selected(item.id) || value.length >= 100) return
-    onChange([...value, { exerciseId: item.id, sets: Array.from({ length: Math.max(1, Math.min(50, item.suggestedSets || 1)) }, () => ({ side: '双侧', repetitions: null, springCount: item.springSets?.[0] || 0 })) }])
+    onChange([...value, { exerciseId: item.id, sets: Array.from({ length: Math.max(1, Math.min(50, item.suggestedSets || 1)) }, () => ({ side: '双侧', repetitions: null, springCount: item.springCounts ? 0 : item.springSets?.[0] || 0 })) }])
     close(); triggerRef.current?.focus()
   }
   return <div className="course-training-editor">
