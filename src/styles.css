@@ -254,6 +254,8 @@ tbody tr:hover { background: oklch(98% 0.008 105); }
 .content-cell > span:last-child, .user-cell > span:last-child { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .content-cell strong, .user-cell strong { max-width: 240px; overflow: hidden; color: var(--ink); text-overflow: ellipsis; white-space: nowrap; }
 .content-cell small, .user-cell small { color: var(--ink-muted); font-size: 0.75rem; }
+.device-model-cell img, .device-model-cell .media-placeholder { width: 72px; height: 54px; flex-shrink: 0; object-fit: contain; }
+.campaign-cell img, .campaign-cell .media-placeholder { width: 72px; height: 54px; flex-shrink: 0; object-fit: contain; }
 .user-cell img, .mini-avatar { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; }
 .mini-avatar { display: grid; place-items: center; color: var(--green-dark); background: var(--green-soft); font-weight: 700; }
 .row-actions { display: flex; justify-content: flex-end; gap: 2px; }
@@ -392,6 +394,9 @@ tbody tr:hover { background: oklch(98% 0.008 105); }
 .upload-drop span { color: var(--ink-muted); font-size: 0.6875rem; }
 .media-preview { min-height: 150px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: 9px; background: var(--canvas); }
 .media-preview img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
+.device-model-image .media-preview img { max-height: 260px; object-fit: contain; }
+.campaign-banner .media-preview img { aspect-ratio: auto; max-height: 240px; object-fit: contain; }
+.campaign-poster .media-preview img { aspect-ratio: auto; max-height: 480px; object-fit: contain; }
 .media-preview-fallback { min-height: 104px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; color: var(--ink-muted); background: var(--soft); }
 .media-preview-fallback span { font-size: 0.75rem; }
 .video-preview-player { display: block; width: 100%; aspect-ratio: 16 / 9; background: #20231f; object-fit: contain; }

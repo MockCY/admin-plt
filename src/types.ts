@@ -52,6 +52,7 @@ export type PlanRow = {
 
 export type CampaignRow = {
   id: number; code: string; title: string; rulesText: string; startDate?: string; endDate?: string
+  bannerImage?: string; posterImage?: string
   status: Status; sortOrder: number; checkinCount: number; createdAt: string; updatedAt: string
 }
 
@@ -77,7 +78,7 @@ export type DeviceBatchCreateResult = {
 }
 
 export type DeviceModelRow = {
-  id: number; name: string; brand: string; snPrefix: string; deviceCount: number; createdAt: string; updatedAt: string
+  id: number; name: string; brand: string; snPrefix: string; imageUrl?: string | null; deviceCount: number; createdAt: string; updatedAt: string
 }
 
 export type AuditRow = {

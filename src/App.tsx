@@ -23,7 +23,7 @@ const ROUTES: { key: RouteKey; label: string; icon: typeof LayoutDashboard }[] =
   { key: 'courses', label: '课程管理', icon: BookOpen },
   { key: 'exercises', label: '动作管理', icon: Dumbbell },
   { key: 'plans', label: '训练计划', icon: CalendarDays },
-  { key: 'campaigns', label: '训练营', icon: Flag },
+  { key: 'campaigns', label: '活动', icon: Flag },
   { key: 'devices', label: '设备管理', icon: Activity },
   { key: 'sensors', label: '传感器管理', icon: Activity },
   { key: 'device-models', label: '设备型号', icon: Tags },
@@ -161,7 +161,7 @@ function LoginPage({ onLogin }: { onLogin: (token: string) => void }) {
         <span className="brand-mark large"><Activity size={28} /></span>
         <p className="eyebrow">ARVELLO 管理后台</p>
         <h1>让每一节训练内容，都清楚而可靠。</h1>
-        <p>统一维护课程、动作、计划和训练营，所有发布内容都会同步服务于小程序用户。</p>
+        <p>统一维护课程、动作、计划和活动，所有发布内容都会同步服务于小程序用户。</p>
         <div className="login-proof"><ShieldCheck size={20} /><span><strong>独立后台身份</strong><small>管理员会话与小程序用户完全隔离</small></span></div>
       </div>
     </section>
@@ -227,7 +227,7 @@ function DashboardPage() {
           <div className="section-heading"><div><p className="eyebrow">现在</p><h2>待处理事项</h2></div><ClipboardList size={20} /></div>
           <a className="attention-row" href="#/feedback"><span className="attention-icon warning"><MessageSquareText size={18} /></span><span><strong>问题反馈</strong><small>待处理或处理中</small></span><b>{data.pendingFeedbackCount}</b><ChevronRight size={17} /></a>
           <a className="attention-row" href="#/courses"><span className="attention-icon"><BookOpen size={18} /></span><span><strong>课程内容</strong><small>检查草稿与发布状态</small></span><b>{data.recentContent.filter((item) => item.kind === 'COURSE' && item.status === 'DRAFT').length}</b><ChevronRight size={17} /></a>
-          <a className="attention-row" href="#/campaigns"><span className="attention-icon"><Flag size={18} /></span><span><strong>训练营</strong><small>维护活动日期与规则</small></span><ChevronRight size={17} /></a>
+          <a className="attention-row" href="#/campaigns"><span className="attention-icon"><Flag size={18} /></span><span><strong>活动</strong><small>维护活动海报、日期与规则</small></span><ChevronRight size={17} /></a>
         </section>
       </div>
       <section className="surface recent-panel">
@@ -376,16 +376,16 @@ function CampaignsPage() {
   const [deleting, setDeleting] = useState<CampaignRow | null>(null)
   const { data, loading, error, reload } = useResource<PageResult<CampaignRow>>(`/campaigns?query=${encodeURIComponent(search)}&page=1&pageSize=50`)
   const remove = async () => { if (deleting) { await api(`/campaigns/${deleting.id}`, { method: 'DELETE' }); setDeleting(null); reload() } }
-  return <Page title="训练营" description="维护活动名称、开放日期、规则和发布状态。" action={<button className="button primary" onClick={() => setEditing('new')}><Plus size={17} />新增训练营</button>}>
+  return <Page title="活动" description="维护活动海报、入口文案、开放日期和规则。" action={<button className="button primary" onClick={() => setEditing('new')}><Plus size={17} />新增活动</button>}>
     <Toolbar onSubmit={() => setSearch(query)} query={query} setQuery={setQuery} placeholder="搜索名称或活动代码" onRefresh={reload} loading={loading} />
     {error && <ErrorBanner message={error} onRetry={reload} />}
-    <TableSurface loading={loading} empty={!data?.items.length} emptyText="还没有训练营" emptyHint="创建训练营，发布后用户即可查看和打卡。">
-      <Table><thead><tr><th>训练营</th><th>活动代码</th><th>开放日期</th><th>累计打卡</th><th>状态</th><th>更新时间</th><th><span className="sr-only">操作</span></th></tr></thead>
-        <tbody>{data?.items.map((item) => <tr key={item.id}><td className="cell-title">{item.title}</td><td><code>{item.code}</code></td><td>{item.startDate || '不限'} 至 {item.endDate || '不限'}</td><td>{item.checkinCount}</td><td><Badge status={item.status} /></td><td>{formatDate(item.updatedAt)}</td><td><RowActions onEdit={() => setEditing(item)} onDelete={() => setDeleting(item)} /></td></tr>)}</tbody>
+    <TableSurface loading={loading} empty={!data?.items.length} emptyText="还没有活动" emptyHint="创建活动并上传海报，发布后用户即可点击海报查看详情。">
+      <Table><thead><tr><th>活动</th><th>活动代码</th><th>开放日期</th><th>累计打卡</th><th>状态</th><th>更新时间</th><th><span className="sr-only">操作</span></th></tr></thead>
+        <tbody>{data?.items.map((item) => <tr key={item.id}><td><div className="content-cell campaign-cell"><MediaThumbnail src={item.bannerImage} label={item.title} icon="image" /><span><strong>{item.title}</strong></span></div></td><td><code>{item.code}</code></td><td>{item.startDate || '不限'} 至 {item.endDate || '不限'}</td><td>{item.checkinCount}</td><td><Badge status={item.status} /></td><td>{formatDate(item.updatedAt)}</td><td><RowActions onEdit={() => setEditing(item)} onDelete={() => setDeleting(item)} /></td></tr>)}</tbody>
       </Table>
     </TableSurface>
     {editing && <CampaignEditor value={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload() }} />}
-    <ConfirmDialog open={!!deleting} title="删除训练营？" message={deleting ? `“${deleting.title}”已有打卡记录时无法删除，可以改为下架。` : ''} confirmLabel="删除训练营" onCancel={() => setDeleting(null)} onConfirm={remove} />
+    <ConfirmDialog open={!!deleting} title="删除活动？" message={deleting ? `“${deleting.title}”已有打卡记录时无法删除，可以改为下架。` : ''} confirmLabel="删除活动" onCancel={() => setDeleting(null)} onConfirm={remove} />
   </Page>
 }
 
@@ -502,12 +502,12 @@ function DeviceModelsPage() {
     await api(`/device-models/${deleting.id}`, { method: 'DELETE' })
     setDeleting(null); reload()
   }
-  return <Page title="设备型号" description="维护新建设备时可选择的型号及其 SN 生成前缀。"
+  return <Page title="设备型号" description="维护各型号的展示图片及 SN 生成前缀。"
     action={<button className="button primary" onClick={() => setEditing('new')}><Plus size={17} />新增型号</button>}>
     {error && <ErrorBanner message={error} onRetry={reload} />}
     <TableSurface loading={loading} empty={!data?.length} emptyText="还没有设备型号" emptyHint="先创建型号，再新增设备。">
       <Table><thead><tr><th>品牌名称</th><th>型号名称</th><th>SN 前缀</th><th>设备数量</th><th>更新时间</th><th><span className="sr-only">操作</span></th></tr></thead>
-        <tbody>{data?.map((item) => <tr key={item.id}><td>{item.brand}</td><td className="cell-title">{item.name}</td><td><code>{item.snPrefix}</code></td><td>{item.deviceCount}</td><td>{formatDate(item.updatedAt)}</td><td><RowActions onEdit={() => setEditing(item)} onDelete={() => setDeleting(item)} /></td></tr>)}</tbody>
+        <tbody>{data?.map((item) => <tr key={item.id}><td>{item.brand}</td><td><div className="content-cell device-model-cell"><MediaThumbnail src={item.imageUrl || undefined} label={item.name} icon="image" /><span><strong>{item.name}</strong>{!item.imageUrl && <small>未设置图片</small>}</span></div></td><td><code>{item.snPrefix}</code></td><td>{item.deviceCount}</td><td>{formatDate(item.updatedAt)}</td><td><RowActions onEdit={() => setEditing(item)} onDelete={() => setDeleting(item)} /></td></tr>)}</tbody>
       </Table>
     </TableSurface>
     {editing && <DeviceModelEditor value={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload() }} />}
@@ -736,28 +736,55 @@ function PlanEditor({ value, onClose, onSaved }: { value: PlanRow | null; onClos
 }
 
 function CampaignEditor({ value, onClose, onSaved }: { value: CampaignRow | null; onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState({ code: value?.code || '', title: value?.title || '', rulesText: value?.rulesText || '', startDate: value?.startDate || '', endDate: value?.endDate || '', status: value?.status || 'DRAFT' as Status, sortOrder: value?.sortOrder || 0 })
+  const [form, setForm] = useState({ title: value?.title || '', bannerImage: value?.bannerImage || '', posterImage: value?.posterImage || '', rulesText: value?.rulesText || '', startDate: value?.startDate || '', endDate: value?.endDate || '', status: value?.status || 'DRAFT' as Status, sortOrder: value?.sortOrder || 0 })
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
+  const [bannerUploadState, setBannerUploadState] = useState<'idle' | 'uploading' | 'error'>('idle')
+  const [posterUploadState, setPosterUploadState] = useState<'idle' | 'uploading' | 'error'>('idle')
+  const imageUploadPending = bannerUploadState !== 'idle' || posterUploadState !== 'idle'
+  const imageUploading = bannerUploadState === 'uploading' || posterUploadState === 'uploading'
   const update = (key: string, next: unknown) => setForm((current) => ({ ...current, [key]: next }))
-  const submit = async (event: FormEvent) => { event.preventDefault(); setBusy(true); setError(''); try { await api(value ? `/campaigns/${value.id}` : '/campaigns', json(value ? 'PUT' : 'POST', { ...form, startDate: form.startDate || null, endDate: form.endDate || null })); onSaved() } catch (reason) { setError(reason instanceof Error ? reason.message : '训练营保存失败') } finally { setBusy(false) } }
-  return <SidePanel title={value ? '编辑训练营' : '新增训练营'} subtitle="发布且处于开放日期内时，用户可以查看与打卡" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" form="campaign-form" disabled={busy}>{busy ? '正在保存' : '保存训练营'}</button></div>}>
-    <form id="campaign-form" className="editor-form" onSubmit={submit}>{error && <div className="form-error">{error}</div>}<FormSection title="活动信息"><Field label="训练营名称" required><input value={form.title} onChange={(event) => update('title', event.target.value)} required /></Field><Field label="活动代码" required hint="保存后建议不要修改"><input value={form.code} onChange={(event) => update('code', event.target.value.toUpperCase().replace(/\s/g, '_'))} placeholder="例如 AUGUST_ABS" required /></Field><div className="form-grid"><Field label="开始日期"><input type="date" value={form.startDate} onChange={(event) => update('startDate', event.target.value)} /></Field><Field label="结束日期"><input type="date" value={form.endDate} onChange={(event) => update('endDate', event.target.value)} /></Field></div><Field label="活动规则" required hint="每行一条规则"><textarea rows={7} value={form.rulesText} onChange={(event) => update('rulesText', event.target.value)} required /></Field></FormSection><FormSection title="发布设置"><div className="form-grid"><Field label="状态"><select value={form.status} onChange={(event) => update('status', event.target.value)}><option value="DRAFT">草稿</option><option value="PUBLISHED">发布</option><option value="ARCHIVED">下架</option></select></Field><Field label="排序"><input type="number" value={form.sortOrder} onChange={(event) => update('sortOrder', Number(event.target.value))} /></Field></div></FormSection></form>
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (busy || imageUploadPending) return
+    if (!form.title.trim()) { setError('请填写活动标题'); return }
+    setBusy(true); setError('')
+    try {
+      await api(value ? `/campaigns/${value.id}` : '/campaigns', json(value ? 'PUT' : 'POST', { ...form, title: form.title.trim(), bannerImage: form.bannerImage.trim() || null, posterImage: form.posterImage.trim() || null, startDate: form.startDate || null, endDate: form.endDate || null }))
+      onSaved()
+    } catch (reason) { setError(reason instanceof Error ? reason.message : '活动保存失败') } finally { setBusy(false) }
+  }
+  return <SidePanel title={value ? '编辑活动' : '新增活动'} subtitle="发布且处于开放日期内时，用户可以查看活动详情" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" form="campaign-form" disabled={busy || imageUploadPending}>{busy ? '正在保存' : imageUploading ? '图片上传中' : '保存活动'}</button></div>}>
+    <form id="campaign-form" className="editor-form" onSubmit={submit}>{error && <div className="form-error" role="alert">{error}</div>}
+      <FormSection title="首页展示" description="首页活动图与详情海报分别上传。首页整张图片均可点击，进入对应活动详情。">
+        <Field label="活动标题" required hint="显示在活动详情；未上传首页活动图时也作为入口标题，最多 80 个字符"><input value={form.title} maxLength={80} onChange={(event) => update('title', event.target.value)} required /></Field>
+        <div className="campaign-banner"><MediaUploader label="首页活动图（选填）" kind="image" value={form.bannerImage} hint="建议横版约 3.9:1（如 1560×400）；首页按原比例完整展示，点击任意位置进入详情" disabled={busy} onUploadStateChange={setBannerUploadState} onChange={(next) => update('bannerImage', next)} /></div>
+      </FormSection>
+      <FormSection title="详情展示" description="详情海报仅用于活动详情，支持长图，按原比例完整展示。更换或移除不会影响首页活动图。">
+        <div className="campaign-poster"><MediaUploader label="详情海报（选填）" kind="image" value={form.posterImage} hint="可上传活动介绍长图，在详情中完整展示；与首页活动图独立设置" disabled={busy} onUploadStateChange={setPosterUploadState} onChange={(next) => update('posterImage', next)} /></div>
+      </FormSection>
+      <FormSection title="活动信息"><div className="form-grid"><Field label="开始日期"><input type="date" value={form.startDate} onChange={(event) => update('startDate', event.target.value)} /></Field><Field label="结束日期"><input type="date" value={form.endDate} onChange={(event) => update('endDate', event.target.value)} /></Field></div><Field label="活动规则" required hint="每行一条规则"><textarea rows={7} value={form.rulesText} onChange={(event) => update('rulesText', event.target.value)} required /></Field></FormSection>
+      <FormSection title="发布设置"><div className="form-grid"><Field label="状态"><select value={form.status} onChange={(event) => update('status', event.target.value)}><option value="DRAFT">草稿</option><option value="PUBLISHED">发布</option><option value="ARCHIVED">下架</option></select></Field><Field label="排序"><input type="number" value={form.sortOrder} onChange={(event) => update('sortOrder', Number(event.target.value))} /></Field></div></FormSection>
+    </form>
   </SidePanel>
 }
 
 function DeviceModelEditor({ value, onClose, onSaved }: { value: DeviceModelRow | null; onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState({ name: value?.name || '', brand: value?.brand || 'ARVELLO', snPrefix: value?.snPrefix || 'AV' })
+  const [form, setForm] = useState({ name: value?.name || '', brand: value?.brand || 'ARVELLO', snPrefix: value?.snPrefix || 'AV', imageUrl: value?.imageUrl || '' })
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
+  const [imageUploadState, setImageUploadState] = useState<'idle' | 'uploading' | 'error'>('idle')
   const submit = async (event: FormEvent) => {
-    event.preventDefault(); setBusy(true); setError('')
+    event.preventDefault()
+    if (busy || imageUploadState !== 'idle') return
+    setBusy(true); setError('')
     try {
-      await api(value ? `/device-models/${value.id}` : '/device-models', json(value ? 'PUT' : 'POST', form))
+      await api(value ? `/device-models/${value.id}` : '/device-models', json(value ? 'PUT' : 'POST', { ...form, imageUrl: form.imageUrl.trim() || null }))
       onSaved()
     } catch (reason) { setError(reason instanceof Error ? reason.message : '型号保存失败') } finally { setBusy(false) }
   }
-  return <SidePanel title={value ? '编辑设备型号' : '新增设备型号'} subtitle="型号用于新建设备和生成序列号" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" form="device-model-form" disabled={busy}>{busy ? '正在保存' : '保存型号'}</button></div>}>
+  return <SidePanel title={value ? '编辑设备型号' : '新增设备型号'} subtitle="型号用于新建设备和生成序列号" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" form="device-model-form" disabled={busy || imageUploadState !== 'idle'}>{busy ? '正在保存' : imageUploadState === 'uploading' ? '图片上传中' : '保存型号'}</button></div>}>
     <form id="device-model-form" className="editor-form" onSubmit={submit}>{error && <div className="form-error" role="alert">{error}</div>}
       <FormSection title="型号信息"><Field label="品牌名称" required><select value={form.brand} disabled={Boolean(value?.deviceCount)} onChange={(event) => setForm((current) => ({ ...current, brand: event.target.value, snPrefix: (event.target.value === 'Manhart' ? 'MN' : 'AV') + current.snPrefix.replace(/^(AV|MN)/, '') }))} required><option value="ARVELLO">ARVELLO</option><option value="Manhart">MANHART</option></select></Field><Field label="型号名称" required hint="最多 100 个字符"><input value={form.name} maxLength={100} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="例如 Arvello Rehab Pro" required /></Field><Field label="SN 前缀" required hint={form.brand === 'Manhart' ? '以 MN 开头，例如 MNW01' : '以 AV 开头，例如 AVW01'}><input value={form.snPrefix} minLength={2} maxLength={12} pattern={form.brand === 'Manhart' ? 'MN[A-Z0-9]{0,10}' : 'AV[A-Z0-9]{0,10}'} onChange={(event) => setForm((current) => ({ ...current, snPrefix: event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }))} placeholder={form.brand === 'Manhart' ? '例如 MNW01' : '例如 AVW01'} required /></Field></FormSection>
+      <FormSection title="型号展示" description="用户登录并绑定此型号的设备后，展示这张图片。未设置图片时不展示床图。"><div className="device-model-image"><MediaUploader label="型号图片（选填）" kind="image" value={form.imageUrl} hint="请上传此型号的实物图片，完整展示床体" disabled={busy} onUploadStateChange={setImageUploadState} onChange={(imageUrl) => setForm((current) => ({ ...current, imageUrl }))} /></div></FormSection>
     </form>
   </SidePanel>
 }
@@ -802,18 +829,19 @@ function DeviceBatchCreator({ models, onClose, onCreated }: { models: DeviceMode
   </SidePanel>
 }
 
-function MediaUploader({ label, kind, value, poster, durationSeconds, onChange, onDurationChange, hint }: { hint?: string; label: string; kind: 'image' | 'video' | 'audio'; value: string; poster?: string; durationSeconds?: number; onChange: (value: string) => void; onDurationChange?: (value: number) => void }) {
+function MediaUploader({ label, kind, value, poster, durationSeconds, onChange, onDurationChange, hint, disabled = false, onUploadStateChange }: { hint?: string; label: string; kind: 'image' | 'video' | 'audio'; value: string; poster?: string; durationSeconds?: number; onChange: (value: string) => void; onDurationChange?: (value: number) => void; disabled?: boolean; onUploadStateChange?: (state: 'idle' | 'uploading' | 'error') => void }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [error, setError] = useState('')
+  const [uploadError, setUploadError] = useState('')
   const [previewFailed, setPreviewFailed] = useState(false)
   useEffect(() => setPreviewFailed(false), [value])
   const upload = async (file?: File) => {
-    if (!file) return
-    setBusy(true); setError('')
-    try { const result = await uploadMedia(file, kind); if (kind === 'video') onDurationChange?.(0); onChange(result.url) }
-    catch (reason) { setError(reason instanceof Error ? reason.message : '上传失败，请重新选择文件') }
+    if (!file || busy || disabled) return
+    setBusy(true); setError(''); setUploadError(''); onUploadStateChange?.('uploading')
+    try { const result = await uploadMedia(file, kind); if (kind === 'video') onDurationChange?.(0); onChange(result.url); onUploadStateChange?.('idle') }
+    catch (reason) { setUploadError(reason instanceof Error ? reason.message : '上传失败，请重新选择文件'); onUploadStateChange?.('error') }
     finally { setBusy(false) }
   }
   const download = async () => {
@@ -833,8 +861,8 @@ function MediaUploader({ label, kind, value, poster, durationSeconds, onChange, 
       ? previewFailed ? <div className="media-preview-fallback"><Video size={25} /><span>视频暂不可播放</span></div> : <><video className="video-preview-player" src={mediaUrl(value)} poster={poster ? mediaUrl(poster) : undefined} controls preload="metadata" playsInline onLoadedMetadata={(event) => { const seconds = Math.round(event.currentTarget.duration); if (Number.isFinite(seconds) && seconds > 0 && seconds !== durationSeconds) onDurationChange?.(seconds) }} onError={() => setPreviewFailed(true)} /><div className="video-preview-meta"><Video size={15} /><span title={filename}>{filename}</span><small>{durationSeconds ? formatMediaDuration(durationSeconds) : '读取时长中'}</small></div></>
       : previewFailed ? <div className="media-preview-fallback"><Music size={25} /><span>音频暂不可播放</span></div> : <div className="audio-preview"><div className="audio-preview-meta"><Music size={20} /><span><strong>背景音乐</strong><small title={filename}>{filename}</small></span></div><audio src={mediaUrl(value)} controls preload="metadata" onError={() => setPreviewFailed(true)} /></div>
   return <div className={`uploader ${kind === 'audio' ? 'audio-uploader' : ''}`}><div className="uploader-label"><strong>{label}</strong><small>{formats}</small></div>
-    {value ? <div className="media-preview">{preview}<div className="media-preview-actions"><button type="button" className="icon-button" onClick={download} disabled={downloading} aria-label={`下载${label}`} title={`下载${label}`}>{downloading ? <LoaderCircle className="spin" size={17} /> : <Download size={17} />}</button><div className="media-preview-edit-actions"><button type="button" className="button secondary small" onClick={() => inputRef.current?.click()}>更换{kindLabel}</button><button type="button" className="button ghost small danger-text" onClick={() => { onChange(''); if (kind === 'video') onDurationChange?.(0) }}>移除</button></div></div></div> : <button type="button" className="upload-drop" onClick={() => inputRef.current?.click()} disabled={busy}>{busy ? <LoaderCircle className="spin" size={24} /> : kind === 'audio' ? <Music size={24} /> : <Upload size={24} />}<strong>{busy ? '正在上传' : `选择${kindLabel}`}</strong><span>{hint || (kind === 'image' ? '建议使用 16:9 横图' : kind === 'audio' ? '将在动作播放时循环播放' : '文件大小由服务器配置限制')}</span></button>}
-    <input ref={inputRef} className="sr-only" type="file" accept={accept} onChange={(event) => { upload(event.target.files?.[0]); event.currentTarget.value = '' }} />{error && <p className="field-error">{error}</p>}</div>
+    {value ? <div className="media-preview">{preview}<div className="media-preview-actions"><button type="button" className="icon-button" onClick={download} disabled={downloading} aria-label={`下载${label}`} title={`下载${label}`}>{downloading ? <LoaderCircle className="spin" size={17} /> : <Download size={17} />}</button><div className="media-preview-edit-actions"><button type="button" className="button secondary small" onClick={() => inputRef.current?.click()} disabled={busy || disabled}>{busy ? '正在上传' : `更换${kindLabel}`}</button><button type="button" className="button ghost small danger-text" disabled={busy || disabled} onClick={() => { onChange(''); setError(''); setUploadError(''); onUploadStateChange?.('idle'); if (kind === 'video') onDurationChange?.(0) }}>移除</button></div></div></div> : <button type="button" className="upload-drop" onClick={() => inputRef.current?.click()} disabled={busy || disabled}>{busy ? <LoaderCircle className="spin" size={24} /> : kind === 'audio' ? <Music size={24} /> : <Upload size={24} />}<strong>{busy ? '正在上传' : `选择${kindLabel}`}</strong><span>{hint || (kind === 'image' ? '建议使用 16:9 横图' : kind === 'audio' ? '将在动作播放时循环播放' : '文件大小由服务器配置限制')}</span></button>}
+    <input ref={inputRef} className="sr-only" type="file" accept={accept} disabled={busy || disabled} onChange={(event) => { upload(event.target.files?.[0]); event.currentTarget.value = '' }} />{(uploadError || error) && <p className="field-error" role="alert">{uploadError || error}</p>}{uploadError && onUploadStateChange && <button type="button" className="button ghost small" disabled={busy || disabled} onClick={() => { setUploadError(''); onUploadStateChange('idle') }}>取消本次上传</button>}</div>
 }
 
 function useResource<T>(path: string, refreshInterval = 0) {
