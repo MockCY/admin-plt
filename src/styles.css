@@ -369,6 +369,7 @@ tbody tr:hover { background: oklch(98% 0.008 105); }
 .form-section { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 24px; padding: 24px 22px; border-bottom: 1px solid var(--line); }
 .form-section:last-child { border-bottom: 0; }
 .form-section-heading h3 { margin: 0; font-size: 0.9375rem; }
+.form-step-number { display:inline-grid; width:24px; height:24px; margin-right:8px; place-items:center; border-radius:50%; color:var(--paper); background:var(--green-dark); font-size:0.75rem; }
 .form-section-heading p { margin: 6px 0 0; color: var(--ink-muted); font-size: 0.75rem; line-height: 1.5; }
 .form-section-content { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
@@ -423,6 +424,44 @@ tbody tr:hover { background: oklch(98% 0.008 105); }
 .plan-item { display: grid; grid-template-columns: 28px minmax(150px, 1fr) 86px 40px; align-items: end; gap: 8px; }
 .item-index { align-self: center; color: var(--ink-muted); font-size: 0.75rem; font-weight: 700; text-align: center; }
 .plan-item label { display: flex; flex-direction: column; gap: 4px; color: var(--ink-muted); font-size: 0.6875rem; }
+.plan-editor-panel { width:min(980px, 97vw); }
+.plan-editor .form-section { grid-template-columns:170px minmax(0, 1fr); }
+.plan-editor .form-section-heading h3 { display:flex; align-items:center; }
+.plan-media-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.plan-day-list { display:flex; flex-direction:column; gap:14px; }
+.plan-day-card { padding:16px; border:1px solid var(--line-strong); border-radius:8px; background:var(--paper); }
+.plan-day-card > header { display:grid; grid-template-columns:auto minmax(160px,1fr) auto auto; align-items:center; gap:10px; padding-bottom:13px; border-bottom:1px solid var(--line); }
+.plan-day-card > header input { width:100%; min-height:38px; padding:8px 10px; border:1px solid transparent; border-radius:6px; background:var(--soft); color:var(--ink); font-weight:650; }
+.plan-day-card > header input:focus { border-color:var(--green); background:var(--paper); outline:0; box-shadow:0 0 0 3px oklch(58% 0.11 139 / .12); }
+.plan-day-number { color:var(--green-dark); font-size:0.8125rem; font-weight:750; white-space:nowrap; }
+.plan-day-count { color:var(--ink-muted); font-size:0.75rem; white-space:nowrap; }
+.plan-day-actions { display:flex; gap:4px; }
+.plan-day-actions .icon-button:disabled,.plan-exercise-row .icon-button:disabled { opacity:.3; cursor:not-allowed; }
+.plan-day-exercises { display:flex; flex-direction:column; }
+.plan-exercise-row { min-height:72px; display:grid; grid-template-columns:44px minmax(140px,1fr) auto auto; align-items:center; gap:12px; border-bottom:1px solid var(--line); }
+.plan-exercise-row > img,.plan-exercise-row > .media-placeholder { width:42px; height:42px; border-radius:6px; object-fit:cover; }
+.plan-exercise-row > span:nth-child(2) { min-width:0; display:flex; flex-direction:column; gap:4px; }
+.plan-exercise-row strong { overflow:hidden; font-size:0.8125rem; text-overflow:ellipsis; white-space:nowrap; }
+.plan-exercise-row small { color:var(--ink-muted); font-size:0.6875rem; }
+.plan-exercise-prescription { display:flex; align-items:flex-end; gap:8px; }
+.plan-exercise-prescription label { display:flex; flex-direction:column; gap:4px; color:var(--ink-muted); font-size:0.6875rem; white-space:nowrap; }
+.plan-exercise-prescription input { width:76px; min-height:36px; padding:7px 8px; border:1px solid var(--line-strong); border-radius:6px; background:var(--paper); color:var(--ink); font-size:0.8125rem; }
+.plan-exercise-prescription input:focus { border-color:var(--green); outline:0; box-shadow:0 0 0 3px oklch(58% 0.11 139 / .12); }
+.plan-exercise-actions { display:flex; gap:3px; }
+.plan-day-empty { margin:0; padding:22px 8px; color:var(--ink-muted); font-size:0.75rem; text-align:center; }
+.plan-add-exercise { margin-top:12px; }
+.plan-add-day { min-height:46px; }
+.plan-exercise-picker { margin-top:12px; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--canvas); }
+.plan-exercise-search { height:46px; display:grid; grid-template-columns:20px minmax(0,1fr); align-items:center; gap:8px; padding:0 12px; border-bottom:1px solid var(--line); color:var(--ink-muted); background:var(--paper); }
+.plan-exercise-search input { width:100%; height:100%; border:0; outline:0; background:transparent; }
+.plan-exercise-options { max-height:300px; overflow:auto; padding:6px; }
+.plan-exercise-options > button { width:100%; min-height:58px; display:grid; grid-template-columns:42px minmax(0,1fr) 22px; align-items:center; gap:10px; padding:7px 9px; border:1px solid transparent; border-radius:6px; text-align:left; }
+.plan-exercise-options > button:hover { background:var(--soft); }
+.plan-exercise-options > button.selected { border-color:oklch(78% 0.07 139); background:var(--green-soft); color:var(--green-dark); }
+.plan-exercise-options button > img,.plan-exercise-options button > .media-placeholder { width:40px; height:40px; border-radius:5px; object-fit:cover; }
+.plan-exercise-options button > span:nth-child(2) { min-width:0; display:flex; flex-direction:column; gap:4px; }
+.plan-exercise-options strong { overflow:hidden; color:var(--ink); font-size:0.8125rem; text-overflow:ellipsis; white-space:nowrap; }
+.plan-exercise-options small { color:var(--ink-muted); font-size:0.6875rem; }
 .switch-row { display: flex; align-items: center; gap: 12px; cursor: pointer; }
 .switch-row input { width: 38px; height: 22px; accent-color: var(--green-dark); }
 .switch-row span { display: flex; flex-direction: column; gap: 3px; }
@@ -554,6 +593,17 @@ tbody tr:hover { background: oklch(98% 0.008 105); }
   .phone-bind-row { grid-template-columns: 1fr; align-items: stretch; }
   .phone-unbind-button { width: 100%; }
   .plan-item { grid-template-columns: 26px minmax(130px, 1fr) 78px 40px; }
+  .plan-editor .form-section { grid-template-columns:1fr; }
+  .plan-media-grid { grid-template-columns:1fr; }
+  .plan-day-card { padding:12px; }
+  .plan-day-card > header { grid-template-columns:auto minmax(0,1fr) auto; }
+  .plan-day-count { display:none; }
+  .plan-day-actions { grid-column:1 / -1; justify-content:flex-end; }
+  .plan-exercise-row { grid-template-columns:44px minmax(0,1fr) auto; padding:10px 0; }
+  .plan-exercise-prescription { grid-column:2 / -1; grid-row:2; justify-self:stretch; }
+  .plan-exercise-prescription label { flex:1; }
+  .plan-exercise-prescription input { width:100%; }
+  .plan-exercise-actions { grid-column:3; grid-row:1; }
   .side-panel, .side-panel.wide { width: 100%; }
   .panel-actions { flex-direction: row; }
   .panel-actions .button { width: auto; flex: 1; }

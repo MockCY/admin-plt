@@ -1,6 +1,6 @@
 import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Activity, BarChart3, BookOpen, CalendarDays, Check, ChevronLeft, ChevronRight, FileSpreadsheet,
+  Activity, ArrowDown, ArrowUp, BarChart3, BookOpen, CalendarDays, Check, ChevronLeft, ChevronRight, FileSpreadsheet,
   ClipboardList, Dumbbell, FileClock, Flag, Image as ImageIcon, LayoutDashboard, LoaderCircle,
   Download, ListPlus, LogOut, Menu, MessageSquareText, MoreHorizontal, Pencil, Plus, QrCode, RefreshCw, Search,
   Music, ShieldCheck, Tags, Trash2, Upload, UserRound, UsersRound, Video, X,
@@ -12,7 +12,7 @@ import { EXERCISE_CATEGORIES, exerciseCategoryLabel, normalizeExerciseCategory }
 import { SensorsPage, SensorWorkouts, useSensorLocation } from './SensorAdmin'
 import type {
   AuditRow, CampaignRow, CourseRow, Dashboard, DeviceBatchCreateResult, DeviceModelRow, DeviceRow, ExerciseRow, FeedbackRow, PageResult,
-  PlanItem, PlanRow, PresenceVisit, Status, UserRow, WorkoutRow,
+  PlanDay, PlanDayExercise, PlanRow, PresenceVisit, Status, UserRow, WorkoutRow,
 } from './types'
 
 type RouteKey = 'dashboard' | 'users' | 'courses' | 'exercises' | 'plans' | 'campaigns' | 'devices' | 'sensors' | 'device-models' | 'workouts' | 'feedback' | 'audits'
@@ -20,9 +20,9 @@ type RouteKey = 'dashboard' | 'users' | 'courses' | 'exercises' | 'plans' | 'cam
 const ROUTES: { key: RouteKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: 'dashboard', label: '数据概览', icon: LayoutDashboard },
   { key: 'users', label: '用户管理', icon: UsersRound },
-  { key: 'courses', label: '课程管理', icon: BookOpen },
+  { key: 'courses', label: '训练', icon: BookOpen },
   { key: 'exercises', label: '动作管理', icon: Dumbbell },
-  { key: 'plans', label: '训练计划', icon: CalendarDays },
+  { key: 'plans', label: '计划管理', icon: CalendarDays },
   { key: 'campaigns', label: '活动', icon: Flag },
   { key: 'devices', label: '设备管理', icon: Activity },
   { key: 'sensors', label: '传感器管理', icon: Activity },
@@ -304,7 +304,7 @@ function CoursesPage() {
     await api(`/courses/${deleting.id}`, { method: 'DELETE' })
     setDeleting(null); reload()
   }
-  return <Page title="课程管理" description="创建课程、编排训练动作，并设置课程封面。" action={<button className="button primary" onClick={() => setEditing('new')}><Plus size={17} />新增课程</button>}>
+  return <Page title="训练" description="创建课程、编排训练动作，并设置课程封面。" action={<button className="button primary" onClick={() => setEditing('new')}><Plus size={17} />新增课程</button>}>
     <Toolbar onSubmit={() => { setSearch(query); setPage(1) }} query={query} setQuery={setQuery} placeholder="搜索课程" onRefresh={reload} loading={loading}>
       <StatusSelect value={status} onChange={(value) => { setStatus(value); setPage(1) }} />
     </Toolbar>
@@ -356,12 +356,12 @@ function PlansPage() {
   const [deleting, setDeleting] = useState<PlanRow | null>(null)
   const { data, loading, error, reload } = useResource<PageResult<PlanRow>>(`/plans?query=${encodeURIComponent(search)}&page=1&pageSize=50`)
   const remove = async () => { if (deleting) { await api(`/plans/${deleting.id}`, { method: 'DELETE' }); setDeleting(null); reload() } }
-  return <Page title="训练计划" description="组合课程并安排训练日，停用计划不会影响历史记录。" action={<button className="button primary" onClick={() => setEditing('new')}><Plus size={17} />新增计划</button>}>
+  return <Page title="计划管理" description="从动作库编排每日训练，停用计划不会影响历史记录。" action={<button className="button primary" onClick={() => setEditing('new')}><Plus size={17} />新增计划</button>}>
     <Toolbar onSubmit={() => setSearch(query)} query={query} setQuery={setQuery} placeholder="搜索训练计划" onRefresh={reload} loading={loading} />
     {error && <ErrorBanner message={error} onRetry={reload} />}
-    <TableSurface loading={loading} empty={!data?.items.length} emptyText="还没有训练计划" emptyHint="创建计划并安排每周课程。">
-      <Table><thead><tr><th>计划</th><th>周期</th><th>每周训练</th><th>课程安排</th><th>状态</th><th>更新时间</th><th><span className="sr-only">操作</span></th></tr></thead>
-        <tbody>{data?.items.map((item) => <tr key={item.id}><td><div className="content-cell"><MediaThumbnail src={item.coverImage} label={item.title} icon="image" /><span><strong>{item.title}</strong><small>{item.subtitle || item.description || '尚未填写计划副标题'}</small></span></div></td><td>第 {item.weekNumber} 周</td><td>{item.sessionsPerWeek} 次</td><td>{item.items.length} 节</td><td><Badge status={item.active ? 'PUBLISHED' : 'ARCHIVED'} /></td><td>{formatDate(item.updatedAt)}</td><td><RowActions onEdit={() => setEditing(item)} onDelete={() => setDeleting(item)} /></td></tr>)}</tbody>
+    <TableSurface loading={loading} empty={!data?.items.length} emptyText="还没有训练计划" emptyHint="创建计划并安排每日训练动作。">
+      <Table><thead><tr><th>计划</th><th>训练天数</th><th>动作总数</th><th>单次时长</th><th>状态</th><th>更新时间</th><th><span className="sr-only">操作</span></th></tr></thead>
+        <tbody>{data?.items.map((item) => { const days = item.days || []; return <tr key={item.id}><td><div className="content-cell"><MediaThumbnail src={item.coverImage} label={item.title} icon="image" /><span><strong>{item.title}</strong><small>{item.subtitle || item.description || '尚未填写计划副标题'}</small></span></div></td><td>{days.length} 天</td><td>{days.reduce((sum, day) => sum + (day.exercises || []).length, 0)} 个</td><td>{item.sessionMinutes || 0} 分钟</td><td><Badge status={item.active ? 'PUBLISHED' : 'ARCHIVED'} /></td><td>{formatDate(item.updatedAt)}</td><td><RowActions onEdit={() => setEditing(item)} onDelete={() => setDeleting(item)} /></td></tr> })}</tbody>
       </Table>
     </TableSurface>
     {editing && <PlanEditor value={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload() }} />}
@@ -712,25 +712,80 @@ function ExerciseEditor({ value, onClose, onSaved }: { value: ExerciseRow | null
 }
 
 function PlanEditor({ value, onClose, onSaved }: { value: PlanRow | null; onClose: () => void; onSaved: () => void }) {
+  const initialDays: PlanDay[] = value?.days?.length ? value.days.map(day => ({ ...day, exercises: (day.exercises || []).map(item => ({ ...item, repetitions: item.repetitions || 10, setCount: item.setCount || 2 })) })) : [{ dayNumber: 1, title: '全身激活', sortOrder: 10, exercises: [] }]
   const [form, setForm] = useState({
-    title: value?.title || '', weekNumber: value?.weekNumber || 1, sessionsPerWeek: value?.sessionsPerWeek || 3,
+    title: value?.title || '', weekNumber: value?.weekNumber || 1, sessionsPerWeek: initialDays.length,
     description: value?.description || '', subtitle: value?.subtitle || '', coverImage: value?.coverImage || '',
+    detailImage: value?.detailImage || '',
     level: value?.level || '基础', trainingScene: value?.trainingScene || '居家', sessionMinutes: value?.sessionMinutes || 15,
     benefitOne: value?.benefitOne || '核心激活', benefitTwo: value?.benefitTwo || '身体唤醒', benefitThree: value?.benefitThree || '训练习惯',
-    active: value?.active ?? true, sortOrder: value?.sortOrder || 0, items: value?.items || [] as PlanItem[],
+    active: value?.active ?? true, sortOrder: value?.sortOrder || 0, days: initialDays,
   })
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
-  const courses = useResource<PageResult<CourseRow>>('/courses?status=PUBLISHED&page=1&pageSize=100').data?.items || []
+  const [pickerDay, setPickerDay] = useState<number | null>(null)
+  const [exerciseQuery, setExerciseQuery] = useState('')
+  const [coverUploadState, setCoverUploadState] = useState<'idle' | 'uploading' | 'error'>('idle')
+  const [detailUploadState, setDetailUploadState] = useState<'idle' | 'uploading' | 'error'>('idle')
+  const exercises = useResource<PageResult<ExerciseRow>>('/exercises?status=PUBLISHED&page=1&pageSize=500').data?.items || []
+  const imageUploadPending = coverUploadState !== 'idle' || detailUploadState !== 'idle'
   const update = (key: string, next: unknown) => setForm((current) => ({ ...current, [key]: next }))
-  const addItem = () => { if (courses[0]) update('items', [...form.items, { courseId: courses[0].id, courseTitle: courses[0].title, dayOffset: form.items.length + 1, sortOrder: (form.items.length + 1) * 10 }]) }
-  const setItem = (index: number, patch: Partial<PlanItem>) => update('items', form.items.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item))
-  const submit = async (event: FormEvent) => { event.preventDefault(); setBusy(true); setError(''); try { await api(value ? `/plans/${value.id}` : '/plans', json(value ? 'PUT' : 'POST', form)); onSaved() } catch (reason) { setError(reason instanceof Error ? reason.message : '计划保存失败') } finally { setBusy(false) } }
-  return <SidePanel title={value ? '编辑训练计划' : '新增训练计划'} subtitle="课程按训练日顺序展示给用户" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" form="plan-form" disabled={busy}>{busy ? '正在保存' : '保存计划'}</button></div>}>
-    <form id="plan-form" className="editor-form" onSubmit={submit}>{error && <div className="form-error">{error}</div>}<FormSection title="计划信息"><Field label="计划名称" required><input value={form.title} onChange={(event) => update('title', event.target.value)} required /></Field><Field label="一句话目标"><input value={form.subtitle} maxLength={160} onChange={(event) => update('subtitle', event.target.value)} placeholder="例如 建立动作基础，养成运动习惯" /></Field><div className="form-grid"><Field label="当前周数"><input type="number" min="1" max="52" value={form.weekNumber} onChange={(event) => update('weekNumber', Number(event.target.value))} /></Field><Field label="每周训练次数"><input type="number" min="1" max="14" value={form.sessionsPerWeek} onChange={(event) => update('sessionsPerWeek', Number(event.target.value))} /></Field><Field label="难度"><select value={form.level} onChange={(event) => update('level', event.target.value)}>{Array.from(new Set(['基础', '进阶', '舒缓', value?.level].filter(Boolean))).map((item) => <option key={item} value={item}>{item}</option>)}</select></Field><Field label="训练场景"><input value={form.trainingScene} maxLength={30} onChange={(event) => update('trainingScene', event.target.value)} /></Field><Field label="单次时长（分钟）"><input type="number" min="1" max="600" value={form.sessionMinutes} onChange={(event) => update('sessionMinutes', Number(event.target.value))} /></Field></div><Field label="计划介绍"><textarea rows={4} value={form.description} maxLength={300} onChange={(event) => update('description', event.target.value)} /></Field></FormSection>
-      <FormSection title="展示素材"><MediaUploader label="计划封面" kind="image" value={form.coverImage} onChange={(next) => update('coverImage', next)} /></FormSection>
-      <FormSection title="完成收益" description="会展示在小程序计划详情底部。"><div className="form-grid"><Field label="收益一"><input value={form.benefitOne} maxLength={80} onChange={(event) => update('benefitOne', event.target.value)} /></Field><Field label="收益二"><input value={form.benefitTwo} maxLength={80} onChange={(event) => update('benefitTwo', event.target.value)} /></Field><Field label="收益三"><input value={form.benefitThree} maxLength={80} onChange={(event) => update('benefitThree', event.target.value)} /></Field></div></FormSection>
-      <FormSection title="课程安排" description="day 0 表示本周第一天。"><div className="item-list">{form.items.map((item, index) => <div className="plan-item" key={`${item.courseId}-${index}`}><span className="item-index">{index + 1}</span><select value={item.courseId} onChange={(event) => setItem(index, { courseId: Number(event.target.value) })}>{courses.map((course) => <option key={course.id} value={course.id}>{course.title}</option>)}</select><label><span>第几天</span><input type="number" min="0" max="30" value={item.dayOffset} onChange={(event) => setItem(index, { dayOffset: Number(event.target.value) })} /></label><button type="button" className="icon-button danger" onClick={() => update('items', form.items.filter((_, itemIndex) => itemIndex !== index))} aria-label="移除课程"><Trash2 size={17} /></button></div>)}{courses.length ? <button type="button" className="button dashed" onClick={addItem}><Plus size={17} />添加课程</button> : <p className="muted">请先发布至少一节课程。</p>}</div></FormSection>
-      <FormSection title="启用设置"><label className="switch-row"><input type="checkbox" checked={form.active} onChange={(event) => update('active', event.target.checked)} /><span><strong>向用户开放此计划</strong><small>关闭后不再出现在可选计划中</small></span></label></FormSection>
+  const setDay = (index: number, patch: Partial<PlanDay>) => update('days', form.days.map((day, dayIndex) => dayIndex === index ? { ...day, ...patch } : day))
+  const normalizeDays = (days: PlanDay[]) => days.map((day, index) => ({ ...day, dayNumber: index + 1, sortOrder: (index + 1) * 10, exercises: day.exercises.map((item, exerciseIndex) => ({ ...item, sortOrder: (exerciseIndex + 1) * 10 })) }))
+  const addDay = () => update('days', normalizeDays([...form.days, { dayNumber: form.days.length + 1, title: `第 ${form.days.length + 1} 天训练`, sortOrder: (form.days.length + 1) * 10, exercises: [] }]))
+  const removeDay = (index: number) => { update('days', normalizeDays(form.days.filter((_, dayIndex) => dayIndex !== index))); if (pickerDay === index) setPickerDay(null) }
+  const moveDay = (index: number, offset: number) => { const next = [...form.days]; const target = index + offset; if (target < 0 || target >= next.length) return; [next[index], next[target]] = [next[target], next[index]]; update('days', normalizeDays(next)); setPickerDay(null) }
+  const toggleExercise = (dayIndex: number, exercise: ExerciseRow) => {
+    const day = form.days[dayIndex]; const selected = day.exercises.some((item) => item.exerciseId === exercise.id)
+    const next: PlanDayExercise[] = selected ? day.exercises.filter((item) => item.exerciseId !== exercise.id) : [...day.exercises, { exerciseId: exercise.id, exerciseName: exercise.name, repetitions: 10, setCount: Math.max(1, Math.min(20, Number(exercise.suggestedSets) || 2)), sortOrder: (day.exercises.length + 1) * 10 }]
+    setDay(dayIndex, { exercises: next.map((item, index) => ({ ...item, sortOrder: (index + 1) * 10 })) })
+  }
+  const moveExercise = (dayIndex: number, exerciseIndex: number, offset: number) => { const next = [...form.days[dayIndex].exercises]; const target = exerciseIndex + offset; if (target < 0 || target >= next.length) return; [next[exerciseIndex], next[target]] = [next[target], next[exerciseIndex]]; setDay(dayIndex, { exercises: next.map((item, index) => ({ ...item, sortOrder: (index + 1) * 10 })) }) }
+  const setExercisePrescription = (dayIndex: number, exerciseIndex: number, patch: Partial<Pick<PlanDayExercise, 'repetitions' | 'setCount'>>) => setDay(dayIndex, { exercises: form.days[dayIndex].exercises.map((item, index) => index === exerciseIndex ? { ...item, ...patch } : item) })
+  const visibleExercises = exercises.filter((exercise) => `${exercise.name} ${exercise.bodyPart} ${exercise.level}`.toLowerCase().includes(exerciseQuery.trim().toLowerCase()))
+  const submit = async (event: FormEvent) => {
+    event.preventDefault(); if (busy || imageUploadPending) return
+    if (!form.days.length) { setError('请至少添加一个训练日'); return }
+    if (form.active && form.days.some((day) => !day.exercises.length)) { setError('开放计划前，请为每个训练日选择至少一个动作'); return }
+    setBusy(true); setError('')
+    const days = normalizeDays(form.days)
+    try { await api(value ? `/plans/${value.id}` : '/plans', json(value ? 'PUT' : 'POST', { ...form, sessionsPerWeek: days.length, days })); onSaved() }
+    catch (reason) { setError(reason instanceof Error ? reason.message : '计划保存失败') } finally { setBusy(false) }
+  }
+  return <SidePanel className="plan-editor-panel" wide title={value ? '编辑训练计划' : '新增训练计划'} subtitle="按训练日编排动作，保存后同步到小程序" onClose={onClose} footer={<div className="panel-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" form="plan-form" disabled={busy || imageUploadPending}>{busy ? '正在保存' : imageUploadPending ? '图片上传中' : '保存计划'}</button></div>}>
+    <form id="plan-form" className="editor-form plan-editor" onSubmit={submit}>{error && <div className="form-error" role="alert">{error}</div>}<FormSection step={1} title="计划信息"><Field label="计划名称" required><input value={form.title} maxLength={80} onChange={(event) => update('title', event.target.value)} placeholder="例如 7天新手基础训练" required /></Field><Field label="一句话目标"><input value={form.subtitle} maxLength={160} onChange={(event) => update('subtitle', event.target.value)} placeholder="例如 从足部激活到核心稳定，逐步建立基础控制" /></Field><div className="form-grid"><Field label="计划周期"><input value={`${form.days.length} 天`} disabled /></Field><Field label="难度"><select value={form.level} onChange={(event) => update('level', event.target.value)}>{Array.from(new Set(['基础', '进阶', '挑战', '舒缓', value?.level].filter(Boolean))).map((item) => <option key={item} value={item}>{item}</option>)}</select></Field><Field label="训练场景"><input value={form.trainingScene} maxLength={30} onChange={(event) => update('trainingScene', event.target.value)} placeholder="例如 居家核心床" /></Field><Field label="单次时长（分钟）"><input type="number" min="1" max="600" value={form.sessionMinutes} onChange={(event) => update('sessionMinutes', Number(event.target.value))} /></Field></div><Field label="计划介绍"><textarea rows={4} value={form.description} maxLength={300} onChange={(event) => update('description', event.target.value)} placeholder="说明计划适合人群、训练目标与节奏" /></Field></FormSection>
+      <FormSection title="展示素材" description="列表图用于计划列表，详情图用于计划详情页，两张图片互不影响。"><div className="plan-media-grid"><MediaUploader label="列表展示图片" kind="image" value={form.coverImage} hint="建议竖版或 4:3，适合列表缩略图" disabled={busy} onUploadStateChange={setCoverUploadState} onChange={(next) => update('coverImage', next)} /><MediaUploader label="详情展示图片" kind="image" value={form.detailImage} hint="建议 16:9 横图，展示在计划详情顶部" disabled={busy} onUploadStateChange={setDetailUploadState} onChange={(next) => update('detailImage', next)} /></div></FormSection>
+      <FormSection step={2} title="训练日安排" description="按顺序添加训练日，每天可从动作库选择多个动作。">
+        <div className="plan-day-list">
+          {form.days.map((day, dayIndex) => <article className="plan-day-card" key={day.id || `day-${dayIndex}`}>
+            <header>
+              <span className="plan-day-number">Day {dayIndex + 1}</span>
+              <input aria-label={`Day ${dayIndex + 1} 名称`} value={day.title} maxLength={80} onChange={(event) => setDay(dayIndex, { title: event.target.value })} placeholder="训练日名称" required />
+              <span className="plan-day-count">{day.exercises.length} 个动作</span>
+              <div className="plan-day-actions"><button type="button" className="icon-button" disabled={dayIndex === 0} onClick={() => moveDay(dayIndex, -1)} aria-label="上移训练日" title="上移"><ArrowUp size={16} /></button><button type="button" className="icon-button" disabled={dayIndex === form.days.length - 1} onClick={() => moveDay(dayIndex, 1)} aria-label="下移训练日" title="下移"><ArrowDown size={16} /></button><button type="button" className="icon-button danger" onClick={() => removeDay(dayIndex)} aria-label="删除训练日" title="删除"><Trash2 size={16} /></button></div>
+            </header>
+            <div className="plan-day-exercises">
+              {day.exercises.map((item, exerciseIndex) => {
+                const exercise = exercises.find((entry) => entry.id === item.exerciseId)
+                return <div className="plan-exercise-row" key={item.exerciseId}>
+                  <MediaThumbnail src={exercise?.coverImage} label={exercise?.name || item.exerciseName || '动作'} icon="exercise" />
+                  <span><strong>{exercise?.name || item.exerciseName || `动作 #${item.exerciseId}`}</strong><small>{exercise ? `${exercise.bodyPart} · ${exercise.level}` : '动作信息加载中'}</small></span>
+                  <div className="plan-exercise-prescription">
+                    <label><span>每组次数</span><input type="number" min="1" max="999" value={item.repetitions} onChange={(event) => setExercisePrescription(dayIndex, exerciseIndex, { repetitions: Number(event.target.value) })} required /></label>
+                    <label><span>训练组数</span><input type="number" min="1" max="20" value={item.setCount} onChange={(event) => setExercisePrescription(dayIndex, exerciseIndex, { setCount: Number(event.target.value) })} required /></label>
+                  </div>
+                  <div className="plan-exercise-actions"><button type="button" className="icon-button" disabled={exerciseIndex === 0} onClick={() => moveExercise(dayIndex, exerciseIndex, -1)} aria-label="上移动作"><ArrowUp size={15} /></button><button type="button" className="icon-button" disabled={exerciseIndex === day.exercises.length - 1} onClick={() => moveExercise(dayIndex, exerciseIndex, 1)} aria-label="下移动作"><ArrowDown size={15} /></button><button type="button" className="icon-button danger" onClick={() => toggleExercise(dayIndex, exercise || { id: item.exerciseId } as ExerciseRow)} aria-label="移除动作"><Trash2 size={15} /></button></div>
+                </div>
+              })}
+              {!day.exercises.length && <p className="plan-day-empty">还没有动作，发布前至少选择一个。</p>}
+            </div>
+            <button type="button" className="button secondary plan-add-exercise" onClick={() => { setPickerDay(pickerDay === dayIndex ? null : dayIndex); setExerciseQuery('') }}><Plus size={16} />{pickerDay === dayIndex ? '收起动作库' : '从动作库添加'}</button>
+            {pickerDay === dayIndex && <div className="plan-exercise-picker"><div className="plan-exercise-search"><Search size={16} /><input value={exerciseQuery} onChange={(event) => setExerciseQuery(event.target.value)} placeholder="搜索动作名称、类型或难度" /></div><div className="plan-exercise-options">{visibleExercises.map((exercise) => { const selected = day.exercises.some((item) => item.exerciseId === exercise.id); return <button type="button" className={selected ? 'selected' : ''} aria-pressed={selected} key={exercise.id} onClick={() => toggleExercise(dayIndex, exercise)}><MediaThumbnail src={exercise.coverImage} label={exercise.name} icon="exercise" /><span><strong>{exercise.name}</strong><small>{exercise.bodyPart} · {exercise.level}</small></span><Check size={17} /></button> })}{!visibleExercises.length && <p className="muted">没有符合条件的已发布动作。</p>}</div></div>}
+          </article>)}
+          <button type="button" className="button dashed plan-add-day" onClick={addDay} disabled={form.days.length >= 365}><Plus size={17} />{form.days.length >= 365 ? '已达到 365 天上限' : '添加训练日'}</button>
+        </div>
+      </FormSection>
+      <FormSection title="完成收益" description="展示在小程序计划详情底部。"><div className="form-grid"><Field label="收益一"><input value={form.benefitOne} maxLength={80} onChange={(event) => update('benefitOne', event.target.value)} /></Field><Field label="收益二"><input value={form.benefitTwo} maxLength={80} onChange={(event) => update('benefitTwo', event.target.value)} /></Field><Field label="收益三"><input value={form.benefitThree} maxLength={80} onChange={(event) => update('benefitThree', event.target.value)} /></Field></div></FormSection>
+      <FormSection title="启用设置"><div className="form-grid"><label className="switch-row"><input type="checkbox" checked={form.active} onChange={(event) => update('active', event.target.checked)} /><span><strong>向用户开放此计划</strong><small>开放前每个训练日都必须包含动作</small></span></label><Field label="排序"><input type="number" value={form.sortOrder} onChange={(event) => update('sortOrder', Number(event.target.value))} /></Field></div></FormSection>
     </form>
   </SidePanel>
 }
@@ -909,13 +964,13 @@ function Pagination<T>({ data, onPage }: { data: PageResult<T>; onPage: (page: n
   return <nav className="pagination" aria-label="分页"><span>共 {data.total} 条</span><div><button className="icon-button" disabled={data.page <= 1} onClick={() => onPage(data.page - 1)} aria-label="上一页"><ChevronLeft size={18} /></button><span>第 {data.page} / {pages} 页</span><button className="icon-button" disabled={data.page >= pages} onClick={() => onPage(data.page + 1)} aria-label="下一页"><ChevronRight size={18} /></button></div></nav>
 }
 
-function SidePanel({ title, subtitle, onClose, children, footer, wide }: { title: string; subtitle?: string; onClose: () => void; children: ReactNode; footer?: ReactNode; wide?: boolean }) {
+function SidePanel({ title, subtitle, onClose, children, footer, wide, className = '' }: { title: string; subtitle?: string; onClose: () => void; children: ReactNode; footer?: ReactNode; wide?: boolean; className?: string }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
     document.body.classList.add('panel-open'); window.addEventListener('keydown', onKey)
     return () => { document.body.classList.remove('panel-open'); window.removeEventListener('keydown', onKey) }
   }, [onClose])
-  return <div className="panel-layer" role="presentation"><button className="panel-scrim" onClick={onClose} aria-label="关闭编辑面板" /><aside className={`side-panel ${wide ? 'wide' : ''}`} aria-modal="true" role="dialog" aria-labelledby="panel-title"><header><div><h2 id="panel-title">{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button className="icon-button" onClick={onClose} aria-label="关闭"><X size={20} /></button></header><div className="panel-body">{children}</div>{footer && <footer>{footer}</footer>}</aside></div>
+  return <div className="panel-layer" role="presentation"><button className="panel-scrim" onClick={onClose} aria-label="关闭编辑面板" /><aside className={`side-panel ${wide ? 'wide' : ''} ${className}`} aria-modal="true" role="dialog" aria-labelledby="panel-title"><header><div><h2 id="panel-title">{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button className="icon-button" onClick={onClose} aria-label="关闭"><X size={20} /></button></header><div className="panel-body">{children}</div>{footer && <footer>{footer}</footer>}</aside></div>
 }
 
 function DeviceLabelDialog({ device, onClose }: { device: DeviceRow; onClose: () => void }) {
@@ -953,7 +1008,7 @@ function ConfirmDialog({ open, title, message, confirmLabel, onCancel, onConfirm
   return <div className="dialog-layer" role="presentation"><div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title"><span className="dialog-icon"><Trash2 size={22} /></span><h2 id="confirm-title">{title}</h2><p>{message}</p>{error && <div className="form-error">{error}</div>}<div className="dialog-actions"><button className="button secondary" onClick={onCancel}>保留内容</button><button className="button destructive" onClick={confirm} disabled={busy}>{busy ? '正在删除' : confirmLabel}</button></div></div></div>
 }
 
-function FormSection({ title, description, children }: { title: string; description?: string; children: ReactNode }) { return <section className="form-section"><div className="form-section-heading"><h3>{title}</h3>{description && <p>{description}</p>}</div><div className="form-section-content">{children}</div></section> }
+function FormSection({ title, description, children, step }: { title: string; description?: string; children: ReactNode; step?: number }) { return <section className="form-section"><div className="form-section-heading"><h3>{step && <span className="form-step-number">{step}</span>}{title}</h3>{description && <p>{description}</p>}</div><div className="form-section-content">{children}</div></section> }
 function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: ReactNode }) { return <label className="field"><span><span>{label}{required && <b aria-hidden="true"> *</b>}</span>{hint && <small>{hint}</small>}</span>{children}</label> }
 function MediaThumbnail({ src, label, icon }: { src?: string; label: string; icon: 'image' | 'exercise' }) {
   const [failed, setFailed] = useState(false)

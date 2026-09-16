@@ -42,12 +42,15 @@ export type ExerciseRow = {
   createdAt: string; updatedAt: string
 }
 
-export type PlanItem = { id?: number; courseId: number; courseTitle?: string; dayOffset: number; sortOrder: number }
+export type PlanDayExercise = {
+  id?: number; exerciseId: number; exerciseName?: string; repetitions: number; setCount: number; sortOrder: number
+}
+export type PlanDay = { id?: number; dayNumber: number; title: string; sortOrder: number; exercises: PlanDayExercise[] }
 export type PlanRow = {
   id: number; title: string; weekNumber: number; sessionsPerWeek: number; description?: string
-  subtitle?: string; coverImage?: string; level?: string; trainingScene?: string; sessionMinutes?: number
+  subtitle?: string; coverImage?: string; detailImage?: string; level?: string; trainingScene?: string; sessionMinutes?: number
   benefitOne?: string; benefitTwo?: string; benefitThree?: string
-  active: boolean; sortOrder: number; items: PlanItem[]; createdAt: string; updatedAt: string
+  active: boolean; sortOrder: number; days: PlanDay[]; createdAt: string; updatedAt: string
 }
 
 export type CampaignRow = {
