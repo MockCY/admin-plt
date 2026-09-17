@@ -427,7 +427,7 @@ tbody tr:hover { background: oklch(98% 0.008 105); }
 .plan-editor-panel { width:min(980px, 97vw); }
 .plan-editor .form-section { grid-template-columns:170px minmax(0, 1fr); }
 .plan-editor .form-section-heading h3 { display:flex; align-items:center; }
-.plan-media-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.plan-media-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
 .plan-day-list { display:flex; flex-direction:column; gap:14px; }
 .plan-day-card { padding:16px; border:1px solid var(--line-strong); border-radius:8px; background:var(--paper); }
 .plan-day-card > header { display:grid; grid-template-columns:auto minmax(160px,1fr) auto auto; align-items:center; gap:10px; padding-bottom:13px; border-bottom:1px solid var(--line); }

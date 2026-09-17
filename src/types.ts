@@ -16,7 +16,7 @@ export type Dashboard = {
 
 export type UserRow = {
   id: number; nickname?: string; phone?: string; avatarUrl?: string; status: string
-  workoutCount: number; totalMinutes: number; createdAt: string; updatedAt: string
+  workoutCount: number; totalMinutes: number; totalSeconds: number; createdAt: string; updatedAt: string
   presence?: { online: boolean; lastOnlineAt?: string; lastOfflineAt?: string }
 }
 
@@ -47,8 +47,8 @@ export type PlanDayExercise = {
 }
 export type PlanDay = { id?: number; dayNumber: number; title: string; sortOrder: number; exercises: PlanDayExercise[] }
 export type PlanRow = {
-  id: number; title: string; weekNumber: number; sessionsPerWeek: number; description?: string
-  subtitle?: string; coverImage?: string; detailImage?: string; level?: string; trainingScene?: string; sessionMinutes?: number
+  id: number; title: string; weekNumber: number; sessionsPerWeek: number; cycleDays: number; description?: string
+  subtitle?: string; coverImage?: string; detailImage?: string; homeImage?: string; level?: string; trainingScene?: string; sessionMinutes?: number
   benefitOne?: string; benefitTwo?: string; benefitThree?: string
   active: boolean; sortOrder: number; days: PlanDay[]; createdAt: string; updatedAt: string
 }
