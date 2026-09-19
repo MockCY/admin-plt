@@ -16,7 +16,7 @@ export type Dashboard = {
 
 export type UserRow = {
   id: number; nickname?: string; phone?: string; avatarUrl?: string; status: string
-  workoutCount: number; totalMinutes: number; totalSeconds: number; createdAt: string; updatedAt: string
+  workoutCount: number; totalMinutes: number; totalSeconds: number; todaySeconds: number; createdAt: string; updatedAt: string
   presence?: { online: boolean; lastOnlineAt?: string; lastOfflineAt?: string }
 }
 
