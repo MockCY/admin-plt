@@ -64,6 +64,21 @@ export type WorkoutRow = {
   durationMinutes: number; completionPercent: number; startedAt: string; completedAt: string
 }
 
+export type CustomTrainingRow = {
+  id: number; userId: number; userName: string; userPhone?: string; title: string; goal: string; level: string
+  exerciseCount: number; durationMinutes: number; warmupMinutes: number; restSeconds: number; createdAt: string
+}
+
+export type CustomTrainingExercise = {
+  exerciseId: number; exerciseName: string; sortOrder: number; setCount: number; repetitions: number
+}
+
+export type CustomTrainingDetail = {
+  id: number; userId: number; userName: string; userPhone?: string; title: string; summary?: string
+  goal: string; level: string; durationMinutes: number; warmupMinutes: number; restSeconds: number
+  createdAt: string; exercises: CustomTrainingExercise[]
+}
+
 export type FeedbackRow = {
   id: number; userId: number; userName: string; category: string; content: string
   contact?: string; status: string; createdAt: string

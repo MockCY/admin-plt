@@ -484,6 +484,43 @@ tbody tr:hover { background: oklch(98% 0.008 105); }
 .feedback-content h3 { margin: 0 0 10px; font-size: 0.875rem; }
 .feedback-content p { margin: 0; line-height: 1.7; white-space: pre-wrap; }
 
+.custom-trainings-table table { min-width: 820px; }
+.custom-trainings-table th:nth-child(4), .custom-trainings-table td:nth-child(4), .custom-trainings-table th:nth-child(6), .custom-trainings-table td:nth-child(6) { white-space: nowrap; }
+.custom-trainings-table th:last-child, .custom-trainings-table td:last-child { position: sticky; right: 0; min-width: 96px; background: var(--paper); box-shadow: -8px 0 14px -14px var(--ink-muted); white-space: nowrap; }
+.custom-trainings-table tbody tr:hover td:last-child { background: oklch(98% 0.008 105); }
+.custom-training-title, .custom-training-user, .custom-training-taxonomy, .custom-training-config { display: flex; flex-direction: column; gap: 3px; }
+.custom-training-title, .custom-training-user { min-width: 140px; }
+.custom-training-title strong, .custom-training-user strong, .custom-training-taxonomy strong, .custom-training-config strong { color: var(--ink); font-size: 0.8125rem; }
+.custom-training-title small, .custom-training-user small, .custom-training-taxonomy small, .custom-training-config small { color: var(--ink-muted); font-size: 0.6875rem; white-space: nowrap; }
+.custom-training-config { min-width: 142px; }
+.custom-training-owner { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 12px; margin: 20px 22px 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); }
+.custom-training-owner > span:nth-child(2) { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+.custom-training-owner strong { font-size: 0.875rem; }
+.custom-training-owner small { overflow: hidden; color: var(--ink-muted); font-size: 0.75rem; text-overflow: ellipsis; white-space: nowrap; }
+.privacy-label { display: inline-flex; align-items: center; gap: 5px; color: var(--green-dark); font-size: 0.75rem; font-weight: 650; white-space: nowrap; }
+.custom-training-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 28px; padding-bottom: 8px; }
+.custom-training-meta > div { grid-template-columns: 82px 1fr; }
+.custom-training-summary { margin: 8px 22px 24px; padding: 16px; border-radius: 8px; background: var(--soft); }
+.custom-training-summary h3 { margin: 0 0 8px; font-size: 0.875rem; }
+.custom-training-summary p { margin: 0; color: var(--ink-soft); font-size: 0.8125rem; line-height: 1.65; white-space: pre-wrap; }
+.custom-training-exercises { padding: 0 22px 28px; }
+.custom-training-exercises > header { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.custom-training-exercises h3 { margin: 3px 0 0; font-size: 1rem; }
+.custom-training-exercises > header > span { color: var(--ink-muted); font-size: 0.75rem; }
+.custom-training-exercises ol { margin: 0; padding: 0; list-style: none; }
+.custom-training-exercises li { min-height: 66px; display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); }
+.exercise-order { color: var(--ink-muted); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.custom-training-exercises li > span:nth-child(2) { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+.custom-training-exercises li strong { overflow: hidden; font-size: 0.875rem; text-overflow: ellipsis; white-space: nowrap; }
+.custom-training-exercises li small { color: var(--ink-muted); font-size: 0.6875rem; }
+.exercise-prescription { color: var(--ink-soft); font-size: 0.75rem; white-space: nowrap; }
+.exercise-prescription b { color: var(--ink); font-size: 0.875rem; }
+.exercise-prescription i { margin: 0 4px; color: var(--ink-muted); font-style: normal; }
+.custom-training-exercises-empty { margin: 0; padding: 30px 12px; color: var(--ink-muted); font-size: 0.8125rem; text-align: center; }
+.custom-training-panel-state { padding: 20px 22px; }
+.custom-training-detail-skeleton { display: flex; flex-direction: column; gap: 12px; padding: 20px 22px; }
+.custom-training-detail-skeleton span { height: 64px; border-radius: 8px; background: linear-gradient(90deg, var(--soft), var(--canvas), var(--soft)); background-size: 200% 100%; animation: shimmer 1.4s ease-in-out infinite; }
+
 .dialog-layer { position: fixed; inset: 0; z-index: var(--z-modal); display: grid; place-items: center; padding: 20px; background: oklch(20% 0.012 145 / .42); }
 .dialog { width: min(420px, 100%); padding: 26px; border-radius: 12px; background: var(--paper); box-shadow: var(--shadow-md); }
 .dialog-icon { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 12px; color: var(--danger); background: var(--danger-soft); }
@@ -608,6 +645,11 @@ tbody tr:hover { background: oklch(98% 0.008 105); }
   .panel-actions { flex-direction: row; }
   .panel-actions .button { width: auto; flex: 1; }
   .side-panel > footer { padding-inline: 16px; }
+  .custom-training-meta { grid-template-columns: 1fr; }
+  .custom-training-owner { grid-template-columns: 38px minmax(0, 1fr); }
+  .privacy-label { grid-column: 2; }
+  .custom-training-exercises li { grid-template-columns: 28px minmax(0, 1fr); padding: 10px 0; }
+  .exercise-prescription { grid-column: 2; }
   .filter-tabs { width: 100%; overflow-x: auto; }
   .filter-tabs button { flex: 1; white-space: nowrap; }
   .login-brand { display: none; }

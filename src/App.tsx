@@ -11,16 +11,17 @@ import { parseSpringInput, SpringCountsInput, springInputFrom, SpringSummary } f
 import { EXERCISE_CATEGORIES, exerciseCategoryLabel, normalizeExerciseCategory } from './exerciseCategories'
 import { SensorsPage, SensorWorkouts, useSensorLocation } from './SensorAdmin'
 import type {
-  AuditRow, CampaignRow, CourseRow, Dashboard, DeviceBatchCreateResult, DeviceModelRow, DeviceRow, ExerciseRow, FeedbackRow, PageResult,
+  AuditRow, CampaignRow, CourseRow, CustomTrainingDetail, CustomTrainingRow, Dashboard, DeviceBatchCreateResult, DeviceModelRow, DeviceRow, ExerciseRow, FeedbackRow, PageResult,
   PlanDay, PlanDayExercise, PlanRow, PresenceVisit, Status, UserRow, WorkoutRow,
 } from './types'
 
-type RouteKey = 'dashboard' | 'users' | 'courses' | 'exercises' | 'plans' | 'campaigns' | 'devices' | 'sensors' | 'device-models' | 'workouts' | 'feedback' | 'audits'
+type RouteKey = 'dashboard' | 'users' | 'courses' | 'custom-trainings' | 'exercises' | 'plans' | 'campaigns' | 'devices' | 'sensors' | 'device-models' | 'workouts' | 'feedback' | 'audits'
 
 const ROUTES: { key: RouteKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: 'dashboard', label: '数据概览', icon: LayoutDashboard },
   { key: 'users', label: '用户管理', icon: UsersRound },
   { key: 'courses', label: '训练', icon: BookOpen },
+  { key: 'custom-trainings', label: '自定义训练', icon: ListPlus },
   { key: 'exercises', label: '动作管理', icon: Dumbbell },
   { key: 'plans', label: '计划管理', icon: CalendarDays },
   { key: 'campaigns', label: '活动', icon: Flag },
@@ -131,6 +132,7 @@ export default function App() {
           {route === 'dashboard' && <DashboardPage />}
           {route === 'users' && <UsersPage />}
           {route === 'courses' && <CoursesPage />}
+          {route === 'custom-trainings' && <CustomTrainingsPage />}
           {route === 'exercises' && <ExercisesPage />}
           {route === 'plans' && <PlansPage />}
           {route === 'campaigns' && <CampaignsPage />}
@@ -545,6 +547,55 @@ function CourseWorkoutsPage() {
     </TableSurface>
     {data && <Pagination data={data} onPage={setPage} />}
   </Page>
+}
+
+const CUSTOM_TRAINING_GOALS = ['核心强化', '体态改善', '塑形减脂', '放松舒缓']
+const CUSTOM_TRAINING_LEVELS = ['初级', '中级', '高级']
+
+function CustomTrainingsPage() {
+  const [query, setQuery] = useState('')
+  const [search, setSearch] = useState('')
+  const [goal, setGoal] = useState('')
+  const [level, setLevel] = useState('')
+  const [page, setPage] = useState(1)
+  const [selected, setSelected] = useState<CustomTrainingRow | null>(null)
+  const path = `/custom-trainings?query=${encodeURIComponent(search)}&goal=${encodeURIComponent(goal)}&level=${encodeURIComponent(level)}&page=${page}&pageSize=20`
+  const { data, loading, error, reload } = useResource<PageResult<CustomTrainingRow>>(path)
+
+  return <Page title="自定义训练" description="查看用户自行创建的私有训练内容，仅供后台运营核查。">
+    <Toolbar onSubmit={() => { setSearch(query); setPage(1) }} query={query} setQuery={setQuery} placeholder="搜索训练、用户、手机号或用户 ID" onRefresh={reload} loading={loading}>
+      <label className="select-field"><span className="sr-only">训练目标</span><select value={goal} onChange={(event) => { setGoal(event.target.value); setPage(1) }}><option value="">全部目标</option>{CUSTOM_TRAINING_GOALS.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+      <label className="select-field"><span className="sr-only">训练难度</span><select value={level} onChange={(event) => { setLevel(event.target.value); setPage(1) }}><option value="">全部难度</option>{CUSTOM_TRAINING_LEVELS.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+    </Toolbar>
+    {error && <ErrorBanner message={error} onRetry={reload} />}
+    <TableSurface loading={loading} empty={!data?.items.length} emptyText="没有符合条件的自定义训练" emptyHint="用户创建训练后，会按创建时间显示在这里。">
+      <Table className="custom-trainings-table"><thead><tr><th>训练</th><th>创建用户</th><th>目标 / 难度</th><th>动作</th><th>训练设置</th><th>创建时间</th><th><span className="sr-only">操作</span></th></tr></thead>
+        <tbody>{data?.items.map((item) => <tr key={item.id}>
+          <td><span className="custom-training-title"><strong>{item.title}</strong><small>编号 {item.id}</small></span></td>
+          <td><span className="custom-training-user"><strong>{item.userName}</strong><small>{item.userPhone || `用户 ID ${item.userId}`}</small></span></td>
+          <td><span className="custom-training-taxonomy"><strong>{item.goal}</strong><small>{item.level}</small></span></td><td>{item.exerciseCount} 个</td><td><span className="custom-training-config"><strong>{item.durationMinutes} 分钟</strong><small>热身 {item.warmupMinutes} 分钟 · 休息 {item.restSeconds} 秒</small></span></td><td>{formatDate(item.createdAt)}</td>
+          <td><button className="button ghost small" onClick={() => setSelected(item)}>查看详情</button></td>
+        </tr>)}</tbody>
+      </Table>
+    </TableSurface>
+    {data && <Pagination data={data} onPage={setPage} />}
+    {selected && <CustomTrainingPanel key={selected.id} item={selected} onClose={() => setSelected(null)} />}
+  </Page>
+}
+
+function CustomTrainingPanel({ item, onClose }: { item: CustomTrainingRow; onClose: () => void }) {
+  const { data, loading, error, reload } = useResource<CustomTrainingDetail>(`/custom-trainings/${item.id}`)
+  return <SidePanel title={item.title} subtitle={`${item.userName} · 自定义训练 #${item.id}`} onClose={onClose} wide>
+    {error && <div className="custom-training-panel-state"><ErrorBanner message={error} onRetry={reload} /></div>}
+    {loading && !data ? <div className="custom-training-detail-skeleton" aria-label="正在加载训练详情"><span /><span /><span /><span /></div> : data && <>
+      <section className="custom-training-owner"><span className="mini-avatar">{data.userName.slice(0, 1)}</span><span><strong>{data.userName}</strong><small>{data.userPhone || '未绑定手机号'} · 用户 ID {data.userId}</small></span><span className="privacy-label"><ShieldCheck size={15} />用户私有</span></section>
+      <dl className="detail-list custom-training-meta"><div><dt>训练目标</dt><dd>{data.goal}</dd></div><div><dt>难度</dt><dd>{data.level}</dd></div><div><dt>训练时长</dt><dd>{data.durationMinutes} 分钟</dd></div><div><dt>热身时长</dt><dd>{data.warmupMinutes} 分钟</dd></div><div><dt>组间休息</dt><dd>{data.restSeconds} 秒</dd></div><div><dt>创建时间</dt><dd>{formatDate(data.createdAt)}</dd></div></dl>
+      <section className="custom-training-summary"><h3>训练说明</h3><p>{data.summary || '未填写训练说明'}</p></section>
+      <section className="custom-training-exercises"><header><div><p className="eyebrow">动作编排</p><h3>训练动作</h3></div><span>{data.exercises.length} 个动作</span></header>
+        {data.exercises.length ? <ol>{data.exercises.map((exercise, index) => <li key={exercise.exerciseId}><span className="exercise-order">{String(index + 1).padStart(2, '0')}</span><span><strong>{exercise.exerciseName}</strong><small>动作 ID {exercise.exerciseId}</small></span><span className="exercise-prescription"><b>{exercise.setCount}</b> 组 <i>×</i> <b>{exercise.repetitions}</b> 次</span></li>)}</ol> : <p className="custom-training-exercises-empty">没有已配置的训练动作</p>}
+      </section>
+    </>}
+  </SidePanel>
 }
 
 function FeedbackPage() {
